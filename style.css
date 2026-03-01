@@ -1,0 +1,364 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', sans-serif;
+}
+
+#map {
+  width: 100%;
+  height: 100%;
+}
+
+#layer-switcher {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  z-index: 1000;
+  min-width: 210px;
+  backdrop-filter: blur(4px);
+}
+
+#layer-switcher-header {
+  font-size: 16px;
+  font-weight: 700;
+  color: #555;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e0e0e0;
+  text-align: center;
+}
+
+.layer-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 10px;
+  background: #fafafa;
+  cursor: pointer;
+  font-size: 17px;
+  font-family: inherit;
+  color: #444;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.layer-btn:last-child {
+  margin-bottom: 0;
+}
+
+.layer-btn:hover {
+  background: #f0f4ff;
+  border-color: #99b3ff;
+  color: #333;
+}
+
+.layer-btn.active {
+  background: #3366ff;
+  border-color: #3366ff;
+  color: #fff;
+  font-weight: 600;
+}
+
+.layer-btn .icon {
+  font-size: 24px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.panel-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.panel-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: #555;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  user-select: none;
+}
+
+.panel-section-header::after {
+  content: '▲';
+  font-size: 11px;
+  color: #aaa;
+  transition: transform 0.2s;
+}
+
+.panel-section.collapsed .panel-section-header::after {
+  transform: rotate(180deg);
+}
+
+.panel-section-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.25s ease;
+  margin-top: 12px;
+}
+
+.panel-section.collapsed .panel-section-body {
+  grid-template-rows: 0fr;
+  margin-top: 0;
+}
+
+.panel-section-body > * {
+  overflow: hidden;
+}
+
+.camera-control {
+  padding: 6px 2px 12px;
+}
+
+.control-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 15px;
+  color: #555;
+  margin-bottom: 8px;
+}
+
+.control-slider {
+  width: 100%;
+  height: 5px;
+  cursor: pointer;
+  accent-color: #3366ff;
+}
+
+/* 可視化モード切替ボタン */
+.viz-buttons {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.viz-btn {
+  flex: 1;
+  padding: 10px 4px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 10px;
+  background: #fafafa;
+  cursor: pointer;
+  font-size: 15px;
+  font-family: inherit;
+  color: #444;
+  text-align: center;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.viz-btn:hover {
+  background: #f0f4ff;
+  border-color: #99b3ff;
+}
+
+.viz-btn.active {
+  background: #3366ff;
+  border-color: #3366ff;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* MapLibre 操作コントロール 1.5倍 */
+.maplibregl-ctrl-group button {
+  width: 44px;
+  height: 44px;
+}
+
+.maplibregl-ctrl button .maplibregl-ctrl-icon {
+  background-size: 30px 30px;
+}
+
+.maplibregl-ctrl-scale {
+  font-size: 15px;
+  line-height: 1.5;
+  padding: 0 6px;
+  height: auto;
+  min-height: 24px;
+}
+
+/* 凡例パネル */
+#meizan-legend {
+  position: absolute;
+  bottom: 36px;
+  left: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 14px;
+  padding: 18px 22px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  z-index: 1000;
+  min-width: 210px;
+  backdrop-filter: blur(4px);
+}
+
+.legend-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #555;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 16px;
+  color: #444;
+  margin-bottom: 10px;
+}
+
+.legend-row:last-child {
+  margin-bottom: 0;
+}
+
+.legend-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.legend-gradient {
+  height: 16px;
+  border-radius: 4px;
+  margin: 6px 0;
+}
+
+.legend-label-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  color: #666;
+}
+
+.legend-count-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.legend-count-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: #555;
+}
+
+/* 名山ポップアップ */
+.popup-content {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', sans-serif;
+  font-size: 15px;
+  color: #333;
+}
+
+.popup-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid #eee;
+}
+
+.popup-icon {
+  font-size: 36px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.popup-title-block {
+  min-width: 0;
+}
+
+.popup-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #111;
+  line-height: 1.3;
+}
+
+.popup-yomi {
+  font-size: 15px;
+  color: #999;
+  margin-top: 3px;
+}
+
+.popup-stats {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.popup-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #f5f7ff;
+  border-radius: 10px;
+  padding: 12px 8px;
+}
+
+.popup-stat-label {
+  font-size: 13px;
+  color: #999;
+  margin-bottom: 4px;
+}
+
+.popup-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #3366ff;
+}
+
+.popup-visits {
+  border-top: 1px solid #eee;
+  padding-top: 12px;
+}
+
+.popup-visits-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #999;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.popup-visits-list {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.9;
+  font-size: 15px;
+  color: #444;
+}
+
+.popup-visit-note {
+  color: #aaa;
+  font-size: 13px;
+}

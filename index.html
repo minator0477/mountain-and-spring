@@ -1,13 +1,32 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>next-visit</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.js"></script>
-  </body>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Next Visit</title>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="map"></div>
+  <div id="layer-switcher">
+    <div id="layer-switcher-header">背景地図</div>
+    <div id="layer-buttons"></div>
+    <div class="panel-section collapsed">
+      <div class="panel-section-header">表示設定</div>
+      <div class="panel-section-body">
+        <div id="view-buttons"></div>
+      </div>
+    </div>
+    <div class="panel-section collapsed">
+      <div class="panel-section-header">データ</div>
+      <div class="panel-section-body">
+        <div id="data-buttons"></div>
+      </div>
+    </div>
+  </div>
+  <div id="meizan-legend"></div>
+  <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+  <script type="module" src="main.js"></script>
+</body>
 </html>

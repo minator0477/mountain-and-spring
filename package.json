@@ -4,9 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "uv run uvicorn src.server:app --reload --host 0.0.0.0 --port 8000",
     "build": "vite build",
-    "preview": "vite preview"
+    "start": "APP_ENV=production uv run python src/server.py"
   },
   "devDependencies": {
     "vite": "^7.3.1"
