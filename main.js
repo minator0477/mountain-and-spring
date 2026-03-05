@@ -82,6 +82,46 @@ const VIZ_MODES = {
   },
 };
 
+// 泉質リスト
+const SPRING_TYPES = [
+  '単純温泉', '塩化物泉', '炭酸水素塩泉', '硫酸塩泉',
+  '二酸化炭素泉', '含鉄泉', '含ヨウ素塩泉', '酸性泉', '硫黄泉', '放射能泉',
+];
+
+const SPRING_ACTIVE_COLOR = '#e07b00';   // 入湯あり（泉質一致 or フィルタなし）
+const SPRING_UNVISITED_COLOR = '#b0b0b0'; // 未入湯（0回）
+const SPRING_INACTIVE_COLOR = '#cccccc'; // 泉質不一致
+const SPRING_STROKE_COLOR = '#7a3000';   // 名山の白ストロークと区別するための暗い縁
+
+const visited = ['>', ['coalesce', ['get', 'count'], 0], 0];
+
+/** 温泉レイヤーの paint を返す。filterType=null のときは全件同色。 */
+function getSpringPaint(filterType) {
+  // 入湯あり=オレンジ、未入湯=グレー（フィルタなし）
+  // 入湯あり＋泉質一致=オレンジ、それ以外=グレー（フィルタあり）
+  const typeMatch = filterType
+    ? ['in', filterType, ['coalesce', ['get', 'spring_type'], ['literal', []]]]
+    : null;
+
+  const color = typeMatch
+    ? ['case', ['all', visited, typeMatch], SPRING_ACTIVE_COLOR, SPRING_INACTIVE_COLOR]
+    : ['case', visited, SPRING_ACTIVE_COLOR, SPRING_UNVISITED_COLOR];
+
+  return {
+    'circle-color': color,
+    'circle-radius': [
+      'interpolate', ['linear'], ['coalesce', ['get', 'count'], 0],
+      0, 5,
+      1, 8,
+      3, 11,
+      5, 14,
+    ],
+    'circle-stroke-width': 2,
+    'circle-stroke-color': SPRING_STROKE_COLOR,
+    'circle-opacity': 0.9,
+  };
+}
+
 // 全ソース・レイヤーを初期スタイルに含めてまとめて登録
 const sources = {};
 const layers = [];
@@ -215,6 +255,75 @@ map.on('load', () => {
     map.getCanvas().style.cursor = 'pointer';
   });
   map.on('mouseleave', 'meizan-circles', () => {
+    map.getCanvas().style.cursor = '';
+  });
+
+  // 温泉 GeoJSON ソース + サークルレイヤー（名山の上に重ねる）
+  map.addSource('springs', {
+    type: 'geojson',
+    data: '/springs.geojson',
+  });
+
+  map.addLayer({
+    id: 'springs-circles',
+    type: 'circle',
+    source: 'springs',
+    layout: { visibility: 'visible' },
+    paint: getSpringPaint(null),
+  });
+
+  // 温泉クリックでポップアップ表示
+  map.on('click', 'springs-circles', (e) => {
+    const props = e.features[0].properties;
+    const coords = e.features[0].geometry.coordinates.slice();
+
+    const count = props.count ?? 0;
+    const springTypes = props.spring_type
+      ? (typeof props.spring_type === 'string' ? JSON.parse(props.spring_type) : props.spring_type)
+      : null;
+
+    let visitsHTML = '';
+    if (count > 0 && props.visits) {
+      const visits = typeof props.visits === 'string' ? JSON.parse(props.visits) : props.visits;
+      const items = visits.map(v =>
+        `<li>${v.date}${v.note ? `<span class="popup-visit-note">　${v.note}</span>` : ''}</li>`
+      ).join('');
+      visitsHTML = `
+        <div class="popup-visits">
+          <div class="popup-visits-label">入湯日</div>
+          <ul class="popup-visits-list">${items}</ul>
+        </div>`;
+    }
+
+    popup.setLngLat(coords).setHTML(`
+      <div class="popup-content">
+        <div class="popup-header">
+          <span class="popup-icon">♨️</span>
+          <div class="popup-title-block">
+            <div class="popup-title">${props.name}</div>
+            <div class="popup-yomi">${props.yomi}</div>
+          </div>
+        </div>
+        <div class="popup-stats">
+          <div class="popup-stat">
+            <span class="popup-stat-label">入湯</span>
+            <span class="popup-stat-value popup-stat-value--spring">${count} 回</span>
+          </div>
+          ${springTypes ? `
+          <div class="popup-stat">
+            <span class="popup-stat-label">泉質</span>
+            <span class="popup-stat-value popup-stat-value--spring popup-spring-types">${springTypes.join(' / ')}</span>
+          </div>` : ''}
+        </div>
+        ${visitsHTML}
+      </div>
+    `).addTo(map);
+  });
+
+  map.on('mouseenter', 'springs-circles', () => {
+    map.getCanvas().style.cursor = 'pointer';
+  });
+  map.on('mouseleave', 'springs-circles', () => {
     map.getCanvas().style.cursor = '';
   });
 });
@@ -410,3 +519,98 @@ dataButtonContainer.appendChild(vizContainer);
 
 // 初期凡例を表示
 updateLegend(meizanVisible, currentViz);
+
+// ─── 温泉データ表示 UI ────────────────────────────────────────────────────────
+
+let springsVisible = true;
+let currentSpringFilter = null;
+
+const springLegendEl = document.getElementById('spring-legend');
+
+function getSpringLegendHTML(filterType) {
+  const circle = (r, color) =>
+    `<svg width="${r * 2 + 4}" height="${r * 2 + 4}"><circle cx="${r + 2}" cy="${r + 2}" r="${r}" fill="${color}" stroke="${SPRING_STROKE_COLOR}" stroke-width="2"/></svg>`;
+
+  let html = `
+    <div class="legend-title">♨️ 入湯回数</div>
+    <div class="legend-count-row">
+      <div class="legend-count-item">
+        ${circle(5, SPRING_UNVISITED_COLOR)}
+        <span>未入湯</span>
+      </div>
+      <div class="legend-count-item">
+        ${circle(8, SPRING_ACTIVE_COLOR)}
+        <span>1回</span>
+      </div>
+      <div class="legend-count-item">
+        ${circle(11, SPRING_ACTIVE_COLOR)}
+        <span>3回</span>
+      </div>
+      <div class="legend-count-item">
+        ${circle(14, SPRING_ACTIVE_COLOR)}
+        <span>5回以上</span>
+      </div>
+    </div>`;
+
+  if (filterType) {
+    html += `
+      <div class="legend-spring-filter">
+        <div class="legend-row">${circle(9, SPRING_ACTIVE_COLOR)}<span>${filterType}（入湯あり）</span></div>
+        <div class="legend-row">${circle(9, SPRING_INACTIVE_COLOR)}<span>その他</span></div>
+      </div>`;
+  }
+  return html;
+}
+
+function updateSpringLegend(visible, filterType) {
+  springLegendEl.style.display = visible ? 'block' : 'none';
+  if (visible) springLegendEl.innerHTML = getSpringLegendHTML(filterType);
+}
+
+// データパネルの仕切り線
+const springDivider = document.createElement('div');
+springDivider.className = 'data-divider';
+dataButtonContainer.appendChild(springDivider);
+
+// 温泉レイヤー トグルボタン
+const springsToggleBtn = document.createElement('button');
+springsToggleBtn.className = 'layer-btn active';
+springsToggleBtn.innerHTML = '<span class="icon">♨️</span>温泉を表示';
+dataButtonContainer.appendChild(springsToggleBtn);
+
+springsToggleBtn.addEventListener('click', () => {
+  springsVisible = !springsVisible;
+  map.setLayoutProperty('springs-circles', 'visibility', springsVisible ? 'visible' : 'none');
+  springsToggleBtn.classList.toggle('active', springsVisible);
+  updateSpringLegend(springsVisible, currentSpringFilter);
+});
+
+// 泉質フィルタ セレクト
+const springTypeSelect = document.createElement('select');
+springTypeSelect.className = 'spring-type-select';
+
+const defaultOption = document.createElement('option');
+defaultOption.value = '';
+defaultOption.textContent = '泉質でフィルタ（全て）';
+springTypeSelect.appendChild(defaultOption);
+
+SPRING_TYPES.forEach(type => {
+  const opt = document.createElement('option');
+  opt.value = type;
+  opt.textContent = type;
+  springTypeSelect.appendChild(opt);
+});
+
+dataButtonContainer.appendChild(springTypeSelect);
+
+springTypeSelect.addEventListener('change', () => {
+  currentSpringFilter = springTypeSelect.value || null;
+  const paint = getSpringPaint(currentSpringFilter);
+  Object.entries(paint).forEach(([prop, val]) => {
+    map.setPaintProperty('springs-circles', prop, val);
+  });
+  updateSpringLegend(springsVisible, currentSpringFilter);
+});
+
+// 初期凡例を表示
+updateSpringLegend(springsVisible, currentSpringFilter);

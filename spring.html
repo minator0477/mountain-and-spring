@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>温泉リスト管理</title>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', sans-serif;
+      font-size: 14px;
+      color: #333;
+    }
+
+    /* ── サイドバー ── */
+    #sidebar {
+      width: 340px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #e0e0e0;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    #sidebar-header {
+      padding: 16px 18px;
+      background: #3366ff;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    #search-box {
+      padding: 10px 12px;
+      border-bottom: 1px solid #e0e0e0;
+      flex-shrink: 0;
+    }
+    #search-input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    #search-input:focus { outline: none; border-color: #3366ff; }
+
+    #spring-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+      min-height: 0;
+    }
+
+    .spring-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      margin-bottom: 4px;
+      border-radius: 8px;
+      border: 1.5px solid #e0e0e0;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .spring-item:hover { background: #f0f4ff; border-color: #99b3ff; }
+    .spring-item.selected { background: #3366ff; border-color: #3366ff; color: #fff; }
+    .spring-item-name { font-weight: 600; }
+    .spring-item-sub { font-size: 12px; color: #888; margin-top: 2px; }
+    .spring-item.selected .spring-item-sub { color: #cce; }
+    .spring-item-badge {
+      font-size: 12px;
+      color: #aaa;
+      flex-shrink: 0;
+      margin-left: 8px;
+    }
+    .spring-item.selected .spring-item-badge { color: #aad; }
+
+    #add-btn {
+      margin: 8px;
+      padding: 10px;
+      border: 1.5px dashed #3366ff;
+      border-radius: 8px;
+      background: none;
+      color: #3366ff;
+      font-size: 14px;
+      font-family: inherit;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    #add-btn:hover { background: #f0f4ff; }
+
+    /* ── フォーム ── */
+    #form-panel {
+      border-top: 2px solid #3366ff;
+      padding: 14px 14px 16px;
+      overflow-y: auto;
+      flex-shrink: 0;
+      max-height: 55vh;
+      display: none;
+    }
+    #form-panel.visible { display: block; }
+
+    .form-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #3366ff;
+    }
+
+    .form-group { margin-bottom: 10px; }
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .form-input, .form-select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      color: #333;
+      background: #fff;
+    }
+    .form-input:focus, .form-select:focus {
+      outline: none;
+      border-color: #3366ff;
+    }
+
+    .form-input.error { border-color: #e57373; }
+
+    /* 泉質チェックボックスグループ */
+    .checkbox-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .checkbox-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 20px;
+      font-size: 13px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .checkbox-label:hover { background: #f0f4ff; border-color: #99b3ff; }
+    .checkbox-label input[type="checkbox"] { display: none; }
+    .checkbox-label.checked { background: #3366ff; border-color: #3366ff; color: #fff; }
+
+    /* 入湯記録 */
+    #visits-list { margin-bottom: 8px; }
+    .visit-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .visit-date {
+      width: 110px;
+      flex-shrink: 0;
+      padding: 6px 8px;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    .visit-note {
+      flex: 1;
+      padding: 6px 8px;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    .visit-date:focus, .visit-note:focus { outline: none; border-color: #3366ff; }
+    .visit-del-btn {
+      padding: 4px 8px;
+      border: 1.5px solid #e57373;
+      border-radius: 6px;
+      background: none;
+      color: #e57373;
+      cursor: pointer;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    #add-visit-btn {
+      width: 100%;
+      padding: 7px;
+      border: 1.5px dashed #aaa;
+      border-radius: 6px;
+      background: none;
+      color: #888;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    #add-visit-btn:hover { border-color: #3366ff; color: #3366ff; }
+
+    .form-actions { display: flex; gap: 8px; margin-top: 14px; }
+    .btn-save {
+      flex: 1;
+      padding: 10px;
+      background: #3366ff;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-save:hover { background: #2255ee; }
+    .btn-cancel {
+      flex: 1;
+      padding: 10px;
+      background: #f5f5f5;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 8px;
+      color: #555;
+      font-size: 14px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .btn-cancel:hover { background: #eee; }
+    .btn-delete {
+      width: 100%;
+      margin-top: 8px;
+      padding: 8px;
+      background: none;
+      border: 1.5px solid #e57373;
+      border-radius: 8px;
+      color: #e57373;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      display: none;
+    }
+    .btn-delete:hover { background: #fdecea; }
+    .btn-delete.visible { display: block; }
+
+    /* ── 地図 ── */
+    #map { flex: 1; height: 100%; }
+
+    #coord-hint {
+      position: absolute;
+      bottom: 40px;
+      right: 16px;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 13px;
+      color: #555;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      pointer-events: none;
+      display: none;
+    }
+    #coord-hint.visible { display: block; }
+
+    /* トースト通知 */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #222;
+      color: #fff;
+      padding: 10px 22px;
+      border-radius: 8px;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 9999;
+    }
+    #toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<!-- サイドバー -->
+<div id="sidebar">
+  <div id="sidebar-header">🌡 温泉リスト管理</div>
+
+  <div id="search-box">
+    <input type="text" id="search-input" placeholder="名前・よみで検索…">
+  </div>
+
+  <div id="spring-list"></div>
+
+  <button id="add-btn">＋ 新規追加</button>
+
+  <!-- 編集フォーム -->
+  <div id="form-panel">
+    <div class="form-title" id="form-title">新規追加</div>
+
+    <div class="form-group">
+      <label class="form-label">名前 *</label>
+      <input type="text" class="form-input" id="f-name" placeholder="例：草津温泉">
+    </div>
+    <div class="form-group">
+      <label class="form-label">よみ *</label>
+      <input type="text" class="form-input" id="f-yomi" placeholder="例：くさつおんせん">
+    </div>
+    <div class="form-group">
+      <label class="form-label">泉質（複数選択可）</label>
+      <div class="checkbox-group" id="f-spring-type">
+        <label class="checkbox-label"><input type="checkbox" value="単純温泉">単純温泉</label>
+        <label class="checkbox-label"><input type="checkbox" value="塩化物泉">塩化物泉</label>
+        <label class="checkbox-label"><input type="checkbox" value="炭酸水素塩泉">炭酸水素塩泉</label>
+        <label class="checkbox-label"><input type="checkbox" value="硫酸塩泉">硫酸塩泉</label>
+        <label class="checkbox-label"><input type="checkbox" value="二酸化炭素泉">二酸化炭素泉</label>
+        <label class="checkbox-label"><input type="checkbox" value="含鉄泉">含鉄泉</label>
+        <label class="checkbox-label"><input type="checkbox" value="含ヨウ素塩泉">含ヨウ素塩泉</label>
+        <label class="checkbox-label"><input type="checkbox" value="酸性泉">酸性泉</label>
+        <label class="checkbox-label"><input type="checkbox" value="硫黄泉">硫黄泉</label>
+        <label class="checkbox-label"><input type="checkbox" value="放射能泉">放射能泉</label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">施設種別</label>
+      <select class="form-select" id="f-facility-type">
+        <option value="">-- 未選択 --</option>
+        <option value="スパ">スパ</option>
+        <option value="下町銭湯">下町銭湯</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">座標（Google マップの「緯度, 経度」をペースト、または地図をクリック）</label>
+      <input type="text" class="form-input" id="f-coords"
+             placeholder="例：35.676200, 139.650300">
+    </div>
+    <div class="form-group">
+      <label class="form-label">入湯記録</label>
+      <div id="visits-list"></div>
+      <button id="add-visit-btn">＋ 記録を追加</button>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn-save" id="save-btn">保存</button>
+      <button class="btn-cancel" id="cancel-btn">キャンセル</button>
+    </div>
+    <button class="btn-delete" id="delete-btn">🗑 このデータを削除</button>
+  </div>
+</div>
+
+<!-- 地図 -->
+<div id="map"></div>
+<div id="coord-hint">📍 地図をクリックして座標を設定</div>
+<div id="toast"></div>
+
+<script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+<script>
+const API = '/api/springs';
+
+// ── State ──────────────────────────────────────────────────────────────────
+let allSprings = [];
+let editingId  = null;   // null = 新規, number = 更新
+let editMarker = null;
+
+// ── 地図 ───────────────────────────────────────────────────────────────────
+const map = new maplibregl.Map({
+  container: 'map',
+  style: {
+    version: 8,
+    sources: {
+      gsi: {
+        type: 'raster',
+        tiles: ['https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png'],
+        tileSize: 256,
+        maxzoom: 18,
+        attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">国土地理院</a>',
+      },
+    },
+    layers: [{ id: 'gsi', type: 'raster', source: 'gsi' }],
+  },
+  center: [136.0, 36.5],
+  zoom: 5,
+});
+
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
+
+// 「緯度, 経度」文字列を [lng, lat] に変換（Google Maps 形式）
+function parseCoords(str) {
+  const parts = str.split(',').map(s => s.trim());
+  if (parts.length !== 2) return null;
+  const lat = parseFloat(parts[0]);
+  const lng = parseFloat(parts[1]);
+  if (isNaN(lat) || isNaN(lng)) return null;
+  return [lng, lat];
+}
+
+function setCoordsField(lng, lat) {
+  document.getElementById('f-coords').value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  document.getElementById('f-coords').classList.remove('error');
+}
+
+function placeEditMarker(lng, lat) {
+  if (editMarker) {
+    editMarker.setLngLat([lng, lat]);
+  } else {
+    editMarker = new maplibregl.Marker({ color: '#ff6600' }).setLngLat([lng, lat]).addTo(map);
+  }
+}
+
+// フォームが開いているとき、地図クリックで座標セット
+map.on('click', (e) => {
+  if (!document.getElementById('form-panel').classList.contains('visible')) return;
+  const { lng, lat } = e.lngLat;
+  setCoordsField(lng, lat);
+  placeEditMarker(lng, lat);
+});
+
+map.on('load', () => {
+  // 温泉レイヤー
+  map.addSource('springs', { type: 'geojson', data: emptyFC() });
+  map.addLayer({
+    id: 'springs-circle',
+    type: 'circle',
+    source: 'springs',
+    paint: {
+      'circle-color': '#3366ff',
+      'circle-radius': 9,
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#fff',
+      'circle-opacity': 0.9,
+    },
+  });
+
+  const popup = new maplibregl.Popup({ closeButton: false, offset: 14 });
+  map.on('mouseenter', 'springs-circle', (e) => {
+    map.getCanvas().style.cursor = 'pointer';
+    const p = e.features[0].properties;
+    popup.setLngLat(e.features[0].geometry.coordinates)
+      .setHTML(`<strong>${p.name}</strong><br><span style="color:#888">${p.yomi}</span>`)
+      .addTo(map);
+  });
+  map.on('mouseleave', 'springs-circle', () => {
+    map.getCanvas().style.cursor = '';
+    popup.remove();
+  });
+  map.on('click', 'springs-circle', (e) => {
+    const id = e.features[0].properties.id;
+    const s = allSprings.find(s => s.id === id);
+    if (s) openEditForm(s);
+    e.originalEvent.stopPropagation();
+  });
+
+  loadSprings();
+});
+
+function emptyFC() {
+  return { type: 'FeatureCollection', features: [] };
+}
+
+// ── API ────────────────────────────────────────────────────────────────────
+async function loadSprings() {
+  const res = await fetch(API);
+  if (!res.ok) { showToast('データの取得に失敗しました', true); return; }
+  const fc = await res.json();
+  allSprings = fc.features || [];
+  renderList(allSprings);
+  updateMapSource(allSprings);
+}
+
+async function saveSpring() {
+  const name = document.getElementById('f-name').value.trim();
+  const yomi = document.getElementById('f-yomi').value.trim();
+  const coordsStr = document.getElementById('f-coords').value.trim();
+  const coords = parseCoords(coordsStr);
+
+  if (!name || !yomi) return showToast('名前とよみは必須です', true);
+  if (!coords) {
+    document.getElementById('f-coords').classList.add('error');
+    return showToast('座標の形式が正しくありません（例：35.6762, 139.6503）', true);
+  }
+  const [lng, lat] = coords;
+
+  const springTypeArr = [...document.querySelectorAll('#f-spring-type input:checked')].map(cb => cb.value);
+  const springType    = springTypeArr.length > 0 ? springTypeArr : null;
+  const facilityType = document.getElementById('f-facility-type').value || null;
+  const visits       = collectVisits();
+
+  const body = {
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: [lng, lat] },
+    properties: {
+      name, yomi,
+      spring_type:   springType,
+      facility_type: facilityType,
+      count:  visits.length > 0 ? visits.length : null,
+      visits: visits.length > 0 ? visits : null,
+    },
+  };
+
+  const url    = editingId === null ? API : `${API}/${editingId}`;
+  const method = editingId === null ? 'POST' : 'PUT';
+
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (res.ok) {
+    showToast(editingId === null ? '追加しました ✓' : '更新しました ✓');
+    closeForm();
+    await loadSprings();
+  } else {
+    const err = await res.json().catch(() => ({}));
+    showToast('エラー: ' + (err.detail ?? res.statusText), true);
+  }
+}
+
+// ── フォーム操作 ───────────────────────────────────────────────────────────
+function openNewForm() {
+  editingId = null;
+  document.getElementById('form-title').textContent = '新規追加';
+  clearForm();
+  document.getElementById('form-panel').classList.add('visible');
+  document.getElementById('coord-hint').classList.add('visible');
+  document.getElementById('delete-btn').classList.remove('visible');
+  if (editMarker) { editMarker.remove(); editMarker = null; }
+  document.querySelectorAll('.spring-item').forEach(el => el.classList.remove('selected'));
+}
+
+function openEditForm(spring) {
+  editingId = spring.id;
+  const p = spring.properties;
+
+  document.getElementById('form-title').textContent = `編集：${p.name}`;
+  document.getElementById('f-name').value         = p.name ?? '';
+  document.getElementById('f-yomi').value         = p.yomi ?? '';
+  const selectedTypes = Array.isArray(p.spring_type) ? p.spring_type : (p.spring_type ? [p.spring_type] : []);
+  document.querySelectorAll('#f-spring-type .checkbox-label').forEach(label => {
+    const cb = label.querySelector('input');
+    cb.checked = selectedTypes.includes(cb.value);
+    label.classList.toggle('checked', cb.checked);
+  });
+  document.getElementById('f-facility-type').value = p.facility_type ?? '';
+  const [eLng, eLat] = spring.geometry.coordinates;
+  setCoordsField(eLng, eLat);
+
+  document.getElementById('visits-list').innerHTML = '';
+  (p.visits || []).forEach(v => addVisitRow(v.date, v.note));
+
+  document.getElementById('form-panel').classList.add('visible');
+  document.getElementById('coord-hint').classList.add('visible');
+  document.getElementById('delete-btn').classList.add('visible');
+
+  if (editMarker) editMarker.remove();
+  editMarker = new maplibregl.Marker({ color: '#ff6600' })
+    .setLngLat(spring.geometry.coordinates)
+    .addTo(map);
+  map.easeTo({ center: spring.geometry.coordinates, zoom: Math.max(map.getZoom(), 10) });
+
+  document.querySelectorAll('.spring-item').forEach(el => el.classList.remove('selected'));
+  document.querySelector(`.spring-item[data-id="${spring.id}"]`)?.classList.add('selected');
+}
+
+function closeForm() {
+  document.getElementById('form-panel').classList.remove('visible');
+  document.getElementById('coord-hint').classList.remove('visible');
+  if (editMarker) { editMarker.remove(); editMarker = null; }
+  document.querySelectorAll('.spring-item').forEach(el => el.classList.remove('selected'));
+  editingId = null;
+}
+
+function clearForm() {
+  ['f-name','f-yomi','f-coords'].forEach(id => {
+    document.getElementById(id).value = '';
+    document.getElementById(id).classList.remove('error');
+  });
+  document.querySelectorAll('#f-spring-type .checkbox-label').forEach(label => {
+    label.querySelector('input').checked = false;
+    label.classList.remove('checked');
+  });
+  document.getElementById('f-facility-type').value = '';
+  document.getElementById('visits-list').innerHTML  = '';
+}
+
+// ── 入湯記録行 ─────────────────────────────────────────────────────────────
+function addVisitRow(date = '', note = '') {
+  const row = document.createElement('div');
+  row.className = 'visit-row';
+  row.innerHTML = `
+    <input type="text" class="visit-date" placeholder="YYYY/MM/DD" value="${date}" maxlength="10">
+    <input type="text" class="visit-note" placeholder="メモ" value="${note}">
+    <button class="visit-del-btn" title="削除">✕</button>
+  `;
+  row.querySelector('.visit-del-btn').addEventListener('click', () => row.remove());
+  document.getElementById('visits-list').appendChild(row);
+}
+
+function collectVisits() {
+  return [...document.querySelectorAll('#visits-list .visit-row')]
+    .map(row => ({
+      date: row.querySelector('.visit-date').value.trim(),
+      note: row.querySelector('.visit-note').value.trim(),
+    }))
+    .filter(v => v.date);
+}
+
+// ── リスト描画 ─────────────────────────────────────────────────────────────
+function renderList(springs) {
+  const list = document.getElementById('spring-list');
+  list.innerHTML = '';
+  if (!springs.length) {
+    list.innerHTML = '<div style="padding:16px;color:#aaa;text-align:center">データがありません</div>';
+    return;
+  }
+  springs.forEach(s => {
+    const p = s.properties;
+    const el = document.createElement('div');
+    el.className = 'spring-item';
+    el.dataset.id = s.id;
+    el.innerHTML = `
+      <div style="min-width:0">
+        <div class="spring-item-name">${p.name}</div>
+        <div class="spring-item-sub">${p.yomi}${p.spring_type && p.spring_type.length ? '　' + (Array.isArray(p.spring_type) ? p.spring_type.join('・') : p.spring_type) : ''}</div>
+      </div>
+      <div class="spring-item-badge">${p.count ? p.count + '回' : '未入湯'}</div>
+    `;
+    el.addEventListener('click', () => openEditForm(s));
+    list.appendChild(el);
+  });
+}
+
+function updateMapSource(springs) {
+  if (!map.getSource('springs')) return;
+  map.getSource('springs').setData({
+    type: 'FeatureCollection',
+    features: springs.map(s => ({
+      type: 'Feature',
+      geometry: s.geometry,
+      properties: { id: s.id, name: s.properties.name, yomi: s.properties.yomi },
+    })),
+  });
+}
+
+// ── 検索 ───────────────────────────────────────────────────────────────────
+document.getElementById('search-input').addEventListener('input', (e) => {
+  const q = e.target.value.trim();
+  renderList(q
+    ? allSprings.filter(s => s.properties.name.includes(q) || s.properties.yomi.includes(q))
+    : allSprings
+  );
+});
+
+// ── イベントリスナー ────────────────────────────────────────────────────────
+// 座標フィールドへの入力・ペースト時にマーカーを更新
+document.getElementById('f-coords').addEventListener('input', (e) => {
+  const coords = parseCoords(e.target.value);
+  if (!coords) return;
+  const [lng, lat] = coords;
+  placeEditMarker(lng, lat);
+  map.easeTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 10) });
+  e.target.classList.remove('error');
+});
+
+// 泉質チェックボックスのトグル視覚フィードバック
+document.querySelectorAll('#f-spring-type .checkbox-label').forEach(label => {
+  label.addEventListener('click', () => {
+    // click イベントは checkbox の checked 変更後に発火するため、変更後の値を参照
+    setTimeout(() => {
+      label.classList.toggle('checked', label.querySelector('input').checked);
+    }, 0);
+  });
+});
+
+document.getElementById('add-btn').addEventListener('click', openNewForm);
+document.getElementById('save-btn').addEventListener('click', saveSpring);
+document.getElementById('cancel-btn').addEventListener('click', closeForm);
+document.getElementById('add-visit-btn').addEventListener('click', () => addVisitRow());
+document.getElementById('delete-btn').addEventListener('click', async () => {
+  if (editingId === null) return;
+  const name = document.getElementById('f-name').value;
+  if (!confirm(`「${name}」を削除しますか？この操作は取り消せません。`)) return;
+  const res = await fetch(`${API}/${editingId}`, { method: 'DELETE' });
+  if (res.ok) {
+    showToast(`「${name}」を削除しました`);
+    closeForm();
+    await loadSprings();
+  } else {
+    const err = await res.json().catch(() => ({}));
+    showToast('削除エラー: ' + (err.detail ?? res.statusText), true);
+  }
+});
+
+// ── トースト ───────────────────────────────────────────────────────────────
+function showToast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = isError ? '#c0392b' : '#2d7a2d';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>

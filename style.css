@@ -196,16 +196,23 @@ body {
   min-height: 24px;
 }
 
-/* 凡例パネル */
-#meizan-legend {
+/* 凡例パネル群（縦並び） */
+#legends {
   position: absolute;
   bottom: 36px;
   left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 1000;
+}
+
+#meizan-legend,
+#spring-legend {
   background: rgba(255, 255, 255, 0.95);
   border-radius: 14px;
   padding: 18px 22px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
-  z-index: 1000;
   min-width: 210px;
   backdrop-filter: blur(4px);
 }
@@ -268,6 +275,39 @@ body {
   gap: 6px;
   font-size: 14px;
   color: #555;
+}
+
+
+.legend-spring-filter {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #eee;
+}
+
+/* データパネル仕切り線 */
+.data-divider {
+  height: 1px;
+  background: #e0e0e0;
+  margin: 10px 0;
+}
+
+/* 泉質フィルタ セレクト */
+.spring-type-select {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 10px;
+  background: #fafafa;
+  font-size: 15px;
+  font-family: inherit;
+  color: #444;
+  cursor: pointer;
+}
+
+.spring-type-select:focus {
+  outline: none;
+  border-color: #e07b00;
 }
 
 /* 名山ポップアップ */
@@ -335,6 +375,15 @@ body {
   font-size: 20px;
   font-weight: 700;
   color: #3366ff;
+}
+
+.popup-stat-value--spring {
+  color: #e07b00;
+}
+
+.popup-spring-types {
+  font-size: 15px;
+  word-break: break-all;
 }
 
 .popup-visits {

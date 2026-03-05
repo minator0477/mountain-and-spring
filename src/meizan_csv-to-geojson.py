@@ -27,12 +27,8 @@ from pathlib import Path
 
 import fiona
 
-from models import (
-    MeizanFeature,
-    MeizanProperties,
-    PointGeometry,
-    Visit,
-)
+from models.geojson_models import PointGeometry, Visit
+from models.meizan_models import MeizanFeature, MeizanProperties
 
 BASE_DIR = Path(__file__).parent.parent
 MEIZAN_DIR = Path("./data/original/public")

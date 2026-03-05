@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 ROOT = Path(__file__).parent.parent
 DIST = ROOT / "dist"
 GPKG_PATH = str(ROOT / "data/result/meizan.gpkg")
+SPRINGS_GPKG_PATH = ROOT / "data/result/springs.gpkg"
 
 
 # ── FastAPI アプリ ─────────────────────────────────────────────────────────────
@@ -62,6 +63,49 @@ def get_meizan() -> Response:
                 "location": location,
                 "region": region,
                 "note": note,
+                "count": count,
+                "visits": json.loads(visits) if visits else None,
+            },
+        })
+
+    return Response(
+        content=json.dumps({"type": "FeatureCollection", "features": features}, ensure_ascii=False),
+        media_type="application/geo+json",
+    )
+
+
+@app.get("/springs.geojson")
+def get_springs() -> Response:
+    """温泉 GeoPackage を GeoJSON FeatureCollection として返す。"""
+    if not SPRINGS_GPKG_PATH.exists():
+        return Response(
+            content=json.dumps({"type": "FeatureCollection", "features": []}, ensure_ascii=False),
+            media_type="application/geo+json",
+        )
+    con = duckdb.connect()
+    con.execute("LOAD spatial;")
+    rows = con.execute(
+        f"""
+        SELECT id,
+               ST_X(geom) AS lng,
+               ST_Y(geom) AS lat,
+               name, yomi, spring_type, facility_type, count, visits
+        FROM ST_Read('{SPRINGS_GPKG_PATH}')
+        """
+    ).fetchall()
+    con.close()
+
+    features = []
+    for id_, lng, lat, name, yomi, spring_type, facility_type, count, visits in rows:
+        features.append({
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [lng, lat]},
+            "properties": {
+                "id": id_,
+                "name": name,
+                "yomi": yomi,
+                "spring_type": json.loads(spring_type) if spring_type else None,
+                "facility_type": facility_type,
                 "count": count,
                 "visits": json.loads(visits) if visits else None,
             },
