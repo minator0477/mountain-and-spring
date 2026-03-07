@@ -5,6 +5,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/meizan.geojson': 'http://localhost:8000',
+      '/springs.geojson': 'http://localhost:8000',
     },
   },
   build: {
