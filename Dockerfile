@@ -18,6 +18,9 @@ COPY pyproject.toml package.json ./
 # Python 依存インストール
 RUN uv sync --no-dev
 
+# DuckDB spatial 拡張をビルド時にインストール（実行時に LOAD するだけで使えるようにする）
+RUN uv run python -c "import duckdb; con = duckdb.connect(); con.execute('INSTALL spatial;'); con.close()"
+
 # Node.js 依存インストール（vite が devDependencies なので省略不可）
 RUN npm install
 
