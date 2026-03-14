@@ -25,29 +25,13 @@ DIST = ROOT / "dist"
 GPKG_PATH = str(ROOT / "data/result/meizan.gpkg")
 SPRINGS_GPKG_PATH = ROOT / "data/result/springs.gpkg"
 
-
-# ── FastAPI アプリ ─────────────────────────────────────────────────────────────
-
-app = FastAPI(title="名山タイルサーバー")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["GET"],
-)
+# 起動時に読み込んだ GeoJSON をキャッシュする
+_meizan_geojson: str | None = None
+_springs_geojson: str | None = None
 
 
-@app.on_event("startup")
-def install_spatial():
-    """DuckDB spatial 拡張をインストール（未インストール環境向け）。"""
-    con = duckdb.connect()
-    con.execute("INSTALL spatial;")
-    con.close()
-
-
-@app.get("/meizan.geojson")
-def get_meizan() -> Response:
-    """名山 GeoPackage を GeoJSON FeatureCollection として返す。"""
+def _load_meizan() -> str:
+    """名山 GeoPackage を読み込んで GeoJSON 文字列を返す。"""
     con = duckdb.connect()
     con.execute("LOAD spatial;")
     rows = con.execute(
@@ -76,21 +60,11 @@ def get_meizan() -> Response:
                 "visits": json.loads(visits) if visits else None,
             },
         })
-
-    return Response(
-        content=json.dumps({"type": "FeatureCollection", "features": features}, ensure_ascii=False),
-        media_type="application/geo+json",
-    )
+    return json.dumps({"type": "FeatureCollection", "features": features}, ensure_ascii=False)
 
 
-@app.get("/springs.geojson")
-def get_springs() -> Response:
-    """温泉 GeoPackage を GeoJSON FeatureCollection として返す。"""
-    if not SPRINGS_GPKG_PATH.exists():
-        return Response(
-            content=json.dumps({"type": "FeatureCollection", "features": []}, ensure_ascii=False),
-            media_type="application/geo+json",
-        )
+def _load_springs() -> str:
+    """温泉 GeoPackage を読み込んで GeoJSON 文字列を返す。"""
     con = duckdb.connect()
     con.execute("LOAD spatial;")
     rows = con.execute(
@@ -119,77 +93,107 @@ def get_springs() -> Response:
                 "visits": json.loads(visits) if visits else None,
             },
         })
+    return json.dumps({"type": "FeatureCollection", "features": features}, ensure_ascii=False)
 
+
+# ── FastAPI アプリ ─────────────────────────────────────────────────────────────
+
+app = FastAPI(title="名山タイルサーバー")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET"],
+)
+
+
+@app.on_event("startup")
+def startup():
+    """DuckDB spatial 拡張のインストールとデータのメモリへの読み込み。"""
+    global _meizan_geojson, _springs_geojson
+
+    con = duckdb.connect()
+    con.execute("INSTALL spatial;")
+    con.close()
+
+    _meizan_geojson = _load_meizan()
+
+    if Path(SPRINGS_GPKG_PATH).exists():
+        _springs_geojson = _load_springs()
+
+
+@app.get("/meizan.geojson")
+def get_meizan() -> Response:
+    """名山 GeoJSON をキャッシュから返す。"""
     return Response(
-        content=json.dumps({"type": "FeatureCollection", "features": features}, ensure_ascii=False),
+        content=_meizan_geojson,
+        media_type="application/geo+json",
+    )
+
+
+@app.get("/springs.geojson")
+def get_springs() -> Response:
+    """温泉 GeoJSON をキャッシュから返す。"""
+    content = _springs_geojson or json.dumps({"type": "FeatureCollection", "features": []}, ensure_ascii=False)
+    return Response(
+        content=content,
         media_type="application/geo+json",
     )
 
 
 @app.get("/search")
 def search_places(q: str = Query(..., min_length=1)) -> Response:
-    """名山・温泉を名前・読みで部分一致検索する。"""
+    """名山・温泉を名前・読みで部分一致検索する（キャッシュから）。"""
     q = q.strip()
     if not q:
         return Response(
             content=json.dumps({"results": []}, ensure_ascii=False),
             media_type="application/json",
         )
-    pattern = f"%{q}%"
+
     results = []
 
-    con = duckdb.connect()
-    con.execute("LOAD spatial;")
+    if _meizan_geojson:
+        fc = json.loads(_meizan_geojson)
+        for f in fc["features"]:
+            p = f["properties"]
+            if q in (p.get("name") or "") or q in (p.get("yomi") or ""):
+                coords = f["geometry"]["coordinates"]
+                results.append({
+                    "type": "meizan",
+                    "lng": coords[0],
+                    "lat": coords[1],
+                    "no": p["no"],
+                    "name": p["name"],
+                    "yomi": p["yomi"],
+                    "elev_m": p["elev_m"],
+                    "count": p["count"],
+                    "visits": p["visits"],
+                })
+        results.sort(key=lambda x: x["no"])
 
-    rows = con.execute(
-        f"""
-        SELECT ST_X(geom) AS lng, ST_Y(geom) AS lat,
-               no, name, yomi, elev_m, count, visits
-        FROM ST_Read('{GPKG_PATH}')
-        WHERE name LIKE ? OR yomi LIKE ?
-        ORDER BY no
-        """,
-        [pattern, pattern],
-    ).fetchall()
-    for lng, lat, no, name, yomi, elev_m, count, visits in rows:
-        results.append({
-            "type": "meizan",
-            "lng": lng,
-            "lat": lat,
-            "no": no,
-            "name": name,
-            "yomi": yomi,
-            "elev_m": elev_m,
-            "count": count,
-            "visits": json.loads(visits) if visits else None,
-        })
+    if _springs_geojson:
+        fc = json.loads(_springs_geojson)
+        spring_results = []
+        for f in fc["features"]:
+            p = f["properties"]
+            if q in (p.get("name") or "") or q in (p.get("yomi") or ""):
+                coords = f["geometry"]["coordinates"]
+                spring_results.append({
+                    "type": "spring",
+                    "lng": coords[0],
+                    "lat": coords[1],
+                    "id": p["id"],
+                    "name": p["name"],
+                    "yomi": p["yomi"],
+                    "spring_type": p["spring_type"],
+                    "facility_type": p["facility_type"],
+                    "count": p["count"],
+                    "visits": p["visits"],
+                })
+        spring_results.sort(key=lambda x: x["id"])
+        results.extend(spring_results)
 
-    if SPRINGS_GPKG_PATH.exists():
-        rows = con.execute(
-            f"""
-            SELECT ST_X(geom) AS lng, ST_Y(geom) AS lat,
-                   id, name, yomi, spring_type, facility_type, count, visits
-            FROM ST_Read('{SPRINGS_GPKG_PATH}')
-            WHERE name LIKE ? OR yomi LIKE ?
-            ORDER BY id
-            """,
-            [pattern, pattern],
-        ).fetchall()
-        for lng, lat, id_, name, yomi, spring_type, facility_type, count, visits in rows:
-            results.append({
-                "type": "spring",
-                "lng": lng,
-                "lat": lat,
-                "id": id_,
-                "name": name,
-                "yomi": yomi,
-                "spring_type": json.loads(spring_type) if spring_type else None,
-                "facility_type": facility_type,
-                "count": count,
-                "visits": json.loads(visits) if visits else None,
-            })
-
-    con.close()
     return Response(
         content=json.dumps({"results": results}, ensure_ascii=False),
         media_type="application/json",
