@@ -37,6 +37,14 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+def install_spatial():
+    """DuckDB spatial 拡張をインストール（未インストール環境向け）。"""
+    con = duckdb.connect()
+    con.execute("INSTALL spatial;")
+    con.close()
+
+
 @app.get("/meizan.geojson")
 def get_meizan() -> Response:
     """名山 GeoPackage を GeoJSON FeatureCollection として返す。"""
