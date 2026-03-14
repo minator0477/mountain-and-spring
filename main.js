@@ -156,6 +156,13 @@ const map = new maplibregl.Map({
   zoom: 10,
 });
 
+// ポップアップ（検索からも使えるようトップレベルで定義）
+const popup = new maplibregl.Popup({
+  closeButton: true,
+  closeOnClick: false,
+  maxWidth: '360px',
+});
+
 // コントロール追加
 map.addControl(new maplibregl.NavigationControl(), 'top-left');
 map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
@@ -201,12 +208,6 @@ map.on('load', () => {
   });
 
   // クリックでポップアップ表示
-  const popup = new maplibregl.Popup({
-    closeButton: true,
-    closeOnClick: false,
-    maxWidth: '360px',
-  });
-
   map.on('click', 'meizan-circles', (e) => {
     const props = e.features[0].properties;
     const coords = e.features[0].geometry.coordinates.slice();
@@ -614,3 +615,143 @@ springTypeSelect.addEventListener('change', () => {
 
 // 初期凡例を表示
 updateSpringLegend(springsVisible, currentSpringFilter);
+
+// ─── 検索機能 ──────────────────────────────────────────────────────────────────
+
+const searchInput = document.getElementById('search-input');
+const searchResultsEl = document.getElementById('search-results');
+let searchTimer = null;
+let latestResults = [];
+
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  const q = searchInput.value.trim();
+  if (!q) {
+    closeSearchResults();
+    return;
+  }
+  searchTimer = setTimeout(() => fetchSearch(q), 300);
+});
+
+searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeSearchResults();
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#search-box')) closeSearchResults();
+});
+
+function closeSearchResults() {
+  searchResultsEl.style.display = 'none';
+  searchResultsEl.innerHTML = '';
+  latestResults = [];
+}
+
+async function fetchSearch(q) {
+  try {
+    const res = await fetch(`/search?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    latestResults = data.results;
+    renderSearchResults(data.results);
+  } catch (_) {
+    // ネットワークエラーは無視
+  }
+}
+
+function renderSearchResults(results) {
+  if (!results.length) {
+    searchResultsEl.innerHTML = '<div class="search-no-results">見つかりませんでした</div>';
+    searchResultsEl.style.display = 'block';
+    return;
+  }
+  searchResultsEl.innerHTML = results.map((r, i) => {
+    const icon = r.type === 'meizan' ? '⛰️' : '♨️';
+    const sub = r.type === 'meizan'
+      ? `${r.elev_m.toLocaleString()} m`
+      : (r.spring_type ? r.spring_type.join(' / ') : '');
+    return `<div class="search-result-item" data-index="${i}">
+      <span>${icon}</span>
+      <span class="search-result-name">${r.name}</span>
+      <span class="search-result-yomi">${r.yomi}</span>
+      ${sub ? `<span class="search-result-sub">${sub}</span>` : ''}
+    </div>`;
+  }).join('');
+  searchResultsEl.style.display = 'block';
+
+  searchResultsEl.querySelectorAll('.search-result-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const r = latestResults[parseInt(el.dataset.index)];
+      showSearchResult(r);
+    });
+  });
+}
+
+function showSearchResult(r) {
+  searchInput.value = r.name;
+  closeSearchResults();
+  map.flyTo({ center: [r.lng, r.lat], zoom: 13, duration: 800 });
+
+  const count = r.count ?? 0;
+  let visitsHTML = '';
+  if (count > 0 && r.visits) {
+    const label = r.type === 'meizan' ? '登頂日' : '入湯日';
+    const items = r.visits.map(v =>
+      `<li>${v.date}${v.note ? `<span class="popup-visit-note">　${v.note}</span>` : ''}</li>`
+    ).join('');
+    visitsHTML = `
+      <div class="popup-visits">
+        <div class="popup-visits-label">${label}</div>
+        <ul class="popup-visits-list">${items}</ul>
+      </div>`;
+  }
+
+  if (r.type === 'meizan') {
+    popup.setLngLat([r.lng, r.lat]).setHTML(`
+      <div class="popup-content">
+        <div class="popup-header">
+          <span class="popup-icon">🏔</span>
+          <div class="popup-title-block">
+            <div class="popup-title">${r.name}</div>
+            <div class="popup-yomi">${r.yomi}</div>
+          </div>
+        </div>
+        <div class="popup-stats">
+          <div class="popup-stat">
+            <span class="popup-stat-label">標高</span>
+            <span class="popup-stat-value">${r.elev_m.toLocaleString()} m</span>
+          </div>
+          <div class="popup-stat">
+            <span class="popup-stat-label">登頂</span>
+            <span class="popup-stat-value">${count} 回</span>
+          </div>
+        </div>
+        ${visitsHTML}
+      </div>
+    `).addTo(map);
+  } else {
+    const springTypes = r.spring_type;
+    popup.setLngLat([r.lng, r.lat]).setHTML(`
+      <div class="popup-content">
+        <div class="popup-header">
+          <span class="popup-icon">♨️</span>
+          <div class="popup-title-block">
+            <div class="popup-title">${r.name}</div>
+            <div class="popup-yomi">${r.yomi}</div>
+          </div>
+        </div>
+        <div class="popup-stats">
+          <div class="popup-stat">
+            <span class="popup-stat-label">入湯</span>
+            <span class="popup-stat-value popup-stat-value--spring">${count} 回</span>
+          </div>
+          ${springTypes ? `
+          <div class="popup-stat">
+            <span class="popup-stat-label">泉質</span>
+            <span class="popup-stat-value popup-stat-value--spring popup-spring-types">${springTypes.join(' / ')}</span>
+          </div>` : ''}
+        </div>
+        ${visitsHTML}
+      </div>
+    `).addTo(map);
+  }
+}

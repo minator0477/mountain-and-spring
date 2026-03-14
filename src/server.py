@@ -15,7 +15,7 @@ from pathlib import Path
 
 import duckdb
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -115,6 +115,76 @@ def get_springs() -> Response:
     return Response(
         content=json.dumps({"type": "FeatureCollection", "features": features}, ensure_ascii=False),
         media_type="application/geo+json",
+    )
+
+
+@app.get("/search")
+def search_places(q: str = Query(..., min_length=1)) -> Response:
+    """名山・温泉を名前・読みで部分一致検索する。"""
+    q = q.strip()
+    if not q:
+        return Response(
+            content=json.dumps({"results": []}, ensure_ascii=False),
+            media_type="application/json",
+        )
+    pattern = f"%{q}%"
+    results = []
+
+    con = duckdb.connect()
+    con.execute("LOAD spatial;")
+
+    rows = con.execute(
+        f"""
+        SELECT ST_X(geom) AS lng, ST_Y(geom) AS lat,
+               no, name, yomi, elev_m, count, visits
+        FROM ST_Read('{GPKG_PATH}')
+        WHERE name LIKE ? OR yomi LIKE ?
+        ORDER BY no
+        """,
+        [pattern, pattern],
+    ).fetchall()
+    for lng, lat, no, name, yomi, elev_m, count, visits in rows:
+        results.append({
+            "type": "meizan",
+            "lng": lng,
+            "lat": lat,
+            "no": no,
+            "name": name,
+            "yomi": yomi,
+            "elev_m": elev_m,
+            "count": count,
+            "visits": json.loads(visits) if visits else None,
+        })
+
+    if SPRINGS_GPKG_PATH.exists():
+        rows = con.execute(
+            f"""
+            SELECT ST_X(geom) AS lng, ST_Y(geom) AS lat,
+                   id, name, yomi, spring_type, facility_type, count, visits
+            FROM ST_Read('{SPRINGS_GPKG_PATH}')
+            WHERE name LIKE ? OR yomi LIKE ?
+            ORDER BY id
+            """,
+            [pattern, pattern],
+        ).fetchall()
+        for lng, lat, id_, name, yomi, spring_type, facility_type, count, visits in rows:
+            results.append({
+                "type": "spring",
+                "lng": lng,
+                "lat": lat,
+                "id": id_,
+                "name": name,
+                "yomi": yomi,
+                "spring_type": json.loads(spring_type) if spring_type else None,
+                "facility_type": facility_type,
+                "count": count,
+                "visits": json.loads(visits) if visits else None,
+            })
+
+    con.close()
+    return Response(
+        content=json.dumps({"results": results}, ensure_ascii=False),
+        media_type="application/json",
     )
 
 
