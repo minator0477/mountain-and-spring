@@ -289,13 +289,133 @@
       z-index: 9999;
     }
     #toast.show { opacity: 1; }
+
+  /* ── モバイル対応 ── */
+  #mobile-toggle { display: none; }
+
+  @media (max-width: 767px) {
+    body { flex-direction: column; }
+
+    #sidebar {
+      width: 100%;
+      max-height: 50vh;
+      border-right: none;
+      border-bottom: 1px solid #e0e0e0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+      flex-shrink: 0;
+    }
+    #sidebar.collapsed { max-height: 48px; }
+
+    #sidebar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      font-size: 15px;
+    }
+
+    #mobile-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: rgba(255,255,255,0.25);
+      border-radius: 6px;
+      color: #fff;
+      font-size: 18px;
+      cursor: pointer;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+
+    #map { flex: 1; min-height: 50vh; }
+
+    /* 検索欄: iOSズーム防止のため16px */
+    #search-input {
+      font-size: 16px;
+      padding: 12px 14px;
+      height: 48px;
+    }
+
+    /* リスト項目のタッチターゲット拡大 */
+    .spring-item { padding: 14px 12px; }
+
+    #add-btn { padding: 14px; font-size: 15px; min-height: 48px; }
+
+    /* フォームをフルスクリーンオーバーレイに変更 */
+    #form-panel {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      max-height: none;
+      overflow-y: auto;
+      border-top: 3px solid #3366ff;
+      padding: 16px 14px 40px;
+      background: #fff;
+    }
+
+    /* フォーム入力: iOSズーム防止のため16px、タッチターゲット確保 */
+    .form-input, .form-select {
+      font-size: 16px;
+      padding: 12px 10px;
+      min-height: 48px;
+    }
+    .visit-date, .visit-note {
+      font-size: 16px;
+      padding: 10px 8px;
+      min-height: 44px;
+    }
+
+    /* ボタンのタッチターゲット拡大 */
+    .btn-save, .btn-cancel {
+      min-height: 52px;
+      font-size: 16px;
+    }
+    .btn-delete { min-height: 48px; font-size: 14px; }
+    #add-visit-btn { min-height: 48px; padding: 12px; font-size: 14px; }
+    .visit-del-btn {
+      padding: 10px 14px;
+      min-height: 44px;
+      min-width: 44px;
+      font-size: 16px;
+    }
+
+    /* 泉質チェックボックスのタッチターゲット拡大 */
+    .checkbox-label { padding: 9px 14px; font-size: 14px; }
+
+    /* ポップアップ閉じるボタンを大きく */
+    .maplibregl-popup-close-button {
+      width: 44px !important;
+      height: 44px !important;
+      font-size: 22px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      padding: 0 !important;
+      top: 0 !important;
+      right: 0 !important;
+    }
+
+    /* coord-hint を地図コントロールと重ならない位置に */
+    #coord-hint {
+      bottom: auto;
+      top: 10px;
+      right: 10px;
+    }
+  }
   </style>
 </head>
 <body>
 
 <!-- サイドバー -->
 <div id="sidebar">
-  <div id="sidebar-header">🌡 温泉リスト管理</div>
+  <div id="sidebar-header">
+    🌡 温泉リスト管理
+    <button id="mobile-toggle" title="リストを開閉">▼</button>
+  </div>
 
   <div id="search-box">
     <input type="text" id="search-input" placeholder="名前・よみで検索…">
@@ -367,6 +487,9 @@
 <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
 <script>
 const API = '/api/springs';
+
+// ── モバイル判定 ────────────────────────────────────────────────────────────
+const isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 
 // ── State ──────────────────────────────────────────────────────────────────
 let allSprings = [];
@@ -443,22 +566,49 @@ map.on('load', () => {
     },
   });
 
-  const popup = new maplibregl.Popup({ closeButton: false, offset: 14 });
-  map.on('mouseenter', 'springs-circle', (e) => {
-    map.getCanvas().style.cursor = 'pointer';
-    const p = e.features[0].properties;
-    popup.setLngLat(e.features[0].geometry.coordinates)
-      .setHTML(`<strong>${p.name}</strong><br><span style="color:#888">${p.yomi}</span>`)
-      .addTo(map);
+  // タッチデバイス: 閉じるボタン付きポップアップ / デスクトップ: ホバーポップアップ
+  const popup = new maplibregl.Popup({
+    closeButton: isTouchDevice,
+    closeOnClick: false,
+    offset: 14,
   });
-  map.on('mouseleave', 'springs-circle', () => {
-    map.getCanvas().style.cursor = '';
-    popup.remove();
-  });
+
+  if (!isTouchDevice) {
+    map.on('mouseenter', 'springs-circle', (e) => {
+      map.getCanvas().style.cursor = 'pointer';
+      const p = e.features[0].properties;
+      popup.setLngLat(e.features[0].geometry.coordinates)
+        .setHTML(`<strong>${p.name}</strong><br><span style="color:#888">${p.yomi}</span>`)
+        .addTo(map);
+    });
+    map.on('mouseleave', 'springs-circle', () => {
+      map.getCanvas().style.cursor = '';
+      popup.remove();
+    });
+  }
+
   map.on('click', 'springs-circle', (e) => {
     const id = e.features[0].properties.id;
     const s = allSprings.find(s => s.id === id);
-    if (s) openEditForm(s);
+    if (s) {
+      if (isTouchDevice) {
+        // タッチ: まずポップアップを表示し、タップで編集フォームを開く
+        const p = e.features[0].properties;
+        popup.setLngLat(e.features[0].geometry.coordinates)
+          .setHTML(
+            `<div style="padding:4px 8px 4px 4px">` +
+            `<strong style="font-size:15px">${p.name}</strong><br>` +
+            `<span style="color:#888;font-size:13px">${p.yomi}</span><br>` +
+            `<button onclick="document.dispatchEvent(new CustomEvent('edit-spring',{detail:${id}}))" ` +
+            `style="margin-top:8px;padding:8px 16px;background:#3366ff;color:#fff;border:none;` +
+            `border-radius:6px;font-size:14px;cursor:pointer;min-height:44px;width:100%">編集</button>` +
+            `</div>`
+          )
+          .addTo(map);
+      } else {
+        openEditForm(s);
+      }
+    }
     e.originalEvent.stopPropagation();
   });
 
@@ -538,6 +688,11 @@ function openNewForm() {
   document.getElementById('delete-btn').classList.remove('visible');
   if (editMarker) { editMarker.remove(); editMarker = null; }
   document.querySelectorAll('.spring-item').forEach(el => el.classList.remove('selected'));
+  // モバイル: フォームを開いたらサイドバーを折りたたむ
+  if (isTouchDevice) {
+    document.getElementById('sidebar').classList.add('collapsed');
+    document.getElementById('mobile-toggle').textContent = '▲';
+  }
 }
 
 function openEditForm(spring) {
@@ -682,6 +837,20 @@ document.querySelectorAll('#f-spring-type .checkbox-label').forEach(label => {
       label.classList.toggle('checked', label.querySelector('input').checked);
     }, 0);
   });
+});
+
+// ── モバイル: ポップアップ「編集」ボタン ───────────────────────────────────
+document.addEventListener('edit-spring', (e) => {
+  const s = allSprings.find(s => s.id === e.detail);
+  if (s) openEditForm(s);
+});
+
+// ── モバイル: サイドバートグル ─────────────────────────────────────────────
+document.getElementById('mobile-toggle').addEventListener('click', () => {
+  const sidebar = document.getElementById('sidebar');
+  const btn = document.getElementById('mobile-toggle');
+  const collapsed = sidebar.classList.toggle('collapsed');
+  btn.textContent = collapsed ? '▲' : '▼';
 });
 
 document.getElementById('add-btn').addEventListener('click', openNewForm);
