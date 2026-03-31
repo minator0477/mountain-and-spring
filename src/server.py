@@ -204,6 +204,24 @@ def search_places(q: str = Query(..., min_length=1)) -> Response:
 # npm run build 後は dist/ を StaticFiles でまとめて配信
 # 未ビルド（開発時）は個別ファイルを直接配信
 
+def _serve_index() -> HTMLResponse:
+    """index.html を配信する（本番は dist/、開発は ROOT/）。"""
+    html_path = DIST / "index.html" if (DIST.exists() and os.getenv("APP_ENV") == "production") else ROOT / "index.html"
+    return HTMLResponse(html_path.read_text(encoding="utf-8"))
+
+
+@app.get("/meizan")
+def meizan_page() -> HTMLResponse:
+    """名山のみ表示ページ。"""
+    return _serve_index()
+
+
+@app.get("/spring")
+def spring_page() -> HTMLResponse:
+    """温泉のみ表示ページ。"""
+    return _serve_index()
+
+
 if DIST.exists() and os.getenv("APP_ENV") == "production":
     app.mount("/", StaticFiles(directory=str(DIST), html=True), name="static")
 else:

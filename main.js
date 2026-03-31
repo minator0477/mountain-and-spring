@@ -28,6 +28,11 @@ const BASEMAPS = {
 
 const DEFAULT_BASEMAP = 'gsi-pale';
 
+// 表示モードをURLパスから決定
+// /meizan → 名山のみ、/spring → 温泉のみ、それ以外 → 両方
+const _path = window.location.pathname.replace(/\/+$/, '');
+const MODE = _path === '/meizan' ? 'meizan' : _path === '/spring' ? 'spring' : 'both';
+
 // 名山データ 可視化モードの定義
 const VIZ_MODES = {
   category: {
@@ -193,140 +198,144 @@ map.on('load', () => {
     },
   });
 
-  // 名山 GeoJSON ソース + サークルレイヤー
-  map.addSource('meizan', {
-    type: 'geojson',
-    data: '/meizan.geojson',
-  });
+  if (MODE !== 'spring') {
+    // 名山 GeoJSON ソース + サークルレイヤー
+    map.addSource('meizan', {
+      type: 'geojson',
+      data: '/meizan.geojson',
+    });
 
-  map.addLayer({
-    id: 'meizan-circles',
-    type: 'circle',
-    source: 'meizan',
-    layout: { visibility: 'visible' },
-    paint: VIZ_MODES.category.paint,
-  });
+    map.addLayer({
+      id: 'meizan-circles',
+      type: 'circle',
+      source: 'meizan',
+      layout: { visibility: 'visible' },
+      paint: VIZ_MODES.category.paint,
+    });
 
-  // クリックでポップアップ表示
-  map.on('click', 'meizan-circles', (e) => {
-    const props = e.features[0].properties;
-    const coords = e.features[0].geometry.coordinates.slice();
+    // クリックでポップアップ表示
+    map.on('click', 'meizan-circles', (e) => {
+      const props = e.features[0].properties;
+      const coords = e.features[0].geometry.coordinates.slice();
 
-    const count = props.count ?? 0;
+      const count = props.count ?? 0;
 
-    let visitsHTML = '';
-    if (count > 0 && props.visits) {
-      const visits = typeof props.visits === 'string' ? JSON.parse(props.visits) : props.visits;
-      const items = visits.map(v =>
-        `<li>${v.date}${v.note ? `<span class="popup-visit-note">　${v.note}</span>` : ''}</li>`
-      ).join('');
-      visitsHTML = `
-        <div class="popup-visits">
-          <div class="popup-visits-label">登頂日</div>
-          <ul class="popup-visits-list">${items}</ul>
-        </div>`;
-    }
+      let visitsHTML = '';
+      if (count > 0 && props.visits) {
+        const visits = typeof props.visits === 'string' ? JSON.parse(props.visits) : props.visits;
+        const items = visits.map(v =>
+          `<li>${v.date}${v.note ? `<span class="popup-visit-note">　${v.note}</span>` : ''}</li>`
+        ).join('');
+        visitsHTML = `
+          <div class="popup-visits">
+            <div class="popup-visits-label">登頂日</div>
+            <ul class="popup-visits-list">${items}</ul>
+          </div>`;
+      }
 
-    popup.setLngLat(coords).setHTML(`
-      <div class="popup-content">
-        <div class="popup-header">
-          <span class="popup-icon">🏔</span>
-          <div class="popup-title-block">
-            <div class="popup-title">${props.name}</div>
-            <div class="popup-yomi">${props.yomi}</div>
+      popup.setLngLat(coords).setHTML(`
+        <div class="popup-content">
+          <div class="popup-header">
+            <span class="popup-icon">🏔</span>
+            <div class="popup-title-block">
+              <div class="popup-title">${props.name}</div>
+              <div class="popup-yomi">${props.yomi}</div>
+            </div>
           </div>
+          <div class="popup-stats">
+            <div class="popup-stat">
+              <span class="popup-stat-label">標高</span>
+              <span class="popup-stat-value">${props.elev_m.toLocaleString()} m</span>
+            </div>
+            <div class="popup-stat">
+              <span class="popup-stat-label">登頂</span>
+              <span class="popup-stat-value">${count} 回</span>
+            </div>
+          </div>
+          ${visitsHTML}
         </div>
-        <div class="popup-stats">
-          <div class="popup-stat">
-            <span class="popup-stat-label">標高</span>
-            <span class="popup-stat-value">${props.elev_m.toLocaleString()} m</span>
+      `).addTo(map);
+    });
+
+    // ホバー時にカーソルをポインターに変更
+    map.on('mouseenter', 'meizan-circles', () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+    map.on('mouseleave', 'meizan-circles', () => {
+      map.getCanvas().style.cursor = '';
+    });
+  }
+
+  if (MODE !== 'meizan') {
+    // 温泉 GeoJSON ソース + サークルレイヤー（名山の上に重ねる）
+    map.addSource('springs', {
+      type: 'geojson',
+      data: '/springs.geojson',
+    });
+
+    map.addLayer({
+      id: 'springs-circles',
+      type: 'circle',
+      source: 'springs',
+      layout: { visibility: 'visible' },
+      paint: getSpringPaint(null),
+    });
+
+    // 温泉クリックでポップアップ表示
+    map.on('click', 'springs-circles', (e) => {
+      const props = e.features[0].properties;
+      const coords = e.features[0].geometry.coordinates.slice();
+
+      const count = props.count ?? 0;
+      const springTypes = props.spring_type
+        ? (typeof props.spring_type === 'string' ? JSON.parse(props.spring_type) : props.spring_type)
+        : null;
+
+      let visitsHTML = '';
+      if (count > 0 && props.visits) {
+        const visits = typeof props.visits === 'string' ? JSON.parse(props.visits) : props.visits;
+        const items = visits.map(v =>
+          `<li>${v.date}${v.note ? `<span class="popup-visit-note">　${v.note}</span>` : ''}</li>`
+        ).join('');
+        visitsHTML = `
+          <div class="popup-visits">
+            <div class="popup-visits-label">入湯日</div>
+            <ul class="popup-visits-list">${items}</ul>
+          </div>`;
+      }
+
+      popup.setLngLat(coords).setHTML(`
+        <div class="popup-content">
+          <div class="popup-header">
+            <span class="popup-icon">♨️</span>
+            <div class="popup-title-block">
+              <div class="popup-title">${props.name}</div>
+              <div class="popup-yomi">${props.yomi}</div>
+            </div>
           </div>
-          <div class="popup-stat">
-            <span class="popup-stat-label">登頂</span>
-            <span class="popup-stat-value">${count} 回</span>
+          <div class="popup-stats">
+            <div class="popup-stat">
+              <span class="popup-stat-label">入湯</span>
+              <span class="popup-stat-value popup-stat-value--spring">${count} 回</span>
+            </div>
+            ${springTypes ? `
+            <div class="popup-stat">
+              <span class="popup-stat-label">泉質</span>
+              <span class="popup-stat-value popup-stat-value--spring popup-spring-types">${springTypes.join(' / ')}</span>
+            </div>` : ''}
           </div>
+          ${visitsHTML}
         </div>
-        ${visitsHTML}
-      </div>
-    `).addTo(map);
-  });
+      `).addTo(map);
+    });
 
-  // ホバー時にカーソルをポインターに変更
-  map.on('mouseenter', 'meizan-circles', () => {
-    map.getCanvas().style.cursor = 'pointer';
-  });
-  map.on('mouseleave', 'meizan-circles', () => {
-    map.getCanvas().style.cursor = '';
-  });
-
-  // 温泉 GeoJSON ソース + サークルレイヤー（名山の上に重ねる）
-  map.addSource('springs', {
-    type: 'geojson',
-    data: '/springs.geojson',
-  });
-
-  map.addLayer({
-    id: 'springs-circles',
-    type: 'circle',
-    source: 'springs',
-    layout: { visibility: 'visible' },
-    paint: getSpringPaint(null),
-  });
-
-  // 温泉クリックでポップアップ表示
-  map.on('click', 'springs-circles', (e) => {
-    const props = e.features[0].properties;
-    const coords = e.features[0].geometry.coordinates.slice();
-
-    const count = props.count ?? 0;
-    const springTypes = props.spring_type
-      ? (typeof props.spring_type === 'string' ? JSON.parse(props.spring_type) : props.spring_type)
-      : null;
-
-    let visitsHTML = '';
-    if (count > 0 && props.visits) {
-      const visits = typeof props.visits === 'string' ? JSON.parse(props.visits) : props.visits;
-      const items = visits.map(v =>
-        `<li>${v.date}${v.note ? `<span class="popup-visit-note">　${v.note}</span>` : ''}</li>`
-      ).join('');
-      visitsHTML = `
-        <div class="popup-visits">
-          <div class="popup-visits-label">入湯日</div>
-          <ul class="popup-visits-list">${items}</ul>
-        </div>`;
-    }
-
-    popup.setLngLat(coords).setHTML(`
-      <div class="popup-content">
-        <div class="popup-header">
-          <span class="popup-icon">♨️</span>
-          <div class="popup-title-block">
-            <div class="popup-title">${props.name}</div>
-            <div class="popup-yomi">${props.yomi}</div>
-          </div>
-        </div>
-        <div class="popup-stats">
-          <div class="popup-stat">
-            <span class="popup-stat-label">入湯</span>
-            <span class="popup-stat-value popup-stat-value--spring">${count} 回</span>
-          </div>
-          ${springTypes ? `
-          <div class="popup-stat">
-            <span class="popup-stat-label">泉質</span>
-            <span class="popup-stat-value popup-stat-value--spring popup-spring-types">${springTypes.join(' / ')}</span>
-          </div>` : ''}
-        </div>
-        ${visitsHTML}
-      </div>
-    `).addTo(map);
-  });
-
-  map.on('mouseenter', 'springs-circles', () => {
-    map.getCanvas().style.cursor = 'pointer';
-  });
-  map.on('mouseleave', 'springs-circles', () => {
-    map.getCanvas().style.cursor = '';
-  });
+    map.on('mouseenter', 'springs-circles', () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+    map.on('mouseleave', 'springs-circles', () => {
+      map.getCanvas().style.cursor = '';
+    });
+  }
 });
 
 // パネルセクションの折りたたみ
@@ -423,7 +432,6 @@ resetViewBtn.addEventListener('click', () => {
 
 // ─── 名山データ表示 UI ────────────────────────────────────────────────────────
 
-let meizanVisible = true;
 let currentViz = 'category';
 
 const dataButtonContainer = document.getElementById('data-buttons');
@@ -468,62 +476,52 @@ function getLegendHTML(mode) {
   return '';
 }
 
-// 凡例の表示・非表示と内容を更新
-function updateLegend(visible, mode) {
-  legendEl.style.display = visible ? 'block' : 'none';
-  if (visible) legendEl.innerHTML = getLegendHTML(mode);
+// 凡例の内容を更新
+function updateLegend(mode) {
+  legendEl.style.display = 'block';
+  legendEl.innerHTML = getLegendHTML(mode);
 }
 
-// 名山レイヤー トグルボタン
-const meizanToggleBtn = document.createElement('button');
-meizanToggleBtn.className = 'layer-btn active';
-meizanToggleBtn.innerHTML = '<span class="icon">⛰️</span>名山を表示';
-dataButtonContainer.appendChild(meizanToggleBtn);
+if (MODE !== 'spring') {
+  // 可視化モード切替ボタン
+  const vizContainer = document.createElement('div');
+  vizContainer.className = 'viz-buttons';
 
-meizanToggleBtn.addEventListener('click', () => {
-  meizanVisible = !meizanVisible;
-  map.setLayoutProperty('meizan-circles', 'visibility', meizanVisible ? 'visible' : 'none');
-  meizanToggleBtn.classList.toggle('active', meizanVisible);
-  updateLegend(meizanVisible, currentViz);
-});
+  Object.entries(VIZ_MODES).forEach(([key, cfg]) => {
+    const btn = document.createElement('button');
+    btn.className = 'viz-btn' + (key === currentViz ? ' active' : '');
+    btn.textContent = cfg.label;
+    btn.dataset.viz = key;
+    vizContainer.appendChild(btn);
 
-// 可視化モード切替ボタン
-const vizContainer = document.createElement('div');
-vizContainer.className = 'viz-buttons';
+    btn.addEventListener('click', () => {
+      if (key === currentViz) return;
+      currentViz = key;
 
-Object.entries(VIZ_MODES).forEach(([key, cfg]) => {
-  const btn = document.createElement('button');
-  btn.className = 'viz-btn' + (key === currentViz ? ' active' : '');
-  btn.textContent = cfg.label;
-  btn.dataset.viz = key;
-  vizContainer.appendChild(btn);
+      // ペイントプロパティをまとめて更新
+      Object.entries(VIZ_MODES[key].paint).forEach(([prop, val]) => {
+        map.setPaintProperty('meizan-circles', prop, val);
+      });
 
-  btn.addEventListener('click', () => {
-    if (key === currentViz) return;
-    currentViz = key;
+      // ボタンのアクティブ状態を更新
+      vizContainer.querySelectorAll('.viz-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
 
-    // ペイントプロパティをまとめて更新
-    Object.entries(VIZ_MODES[key].paint).forEach(([prop, val]) => {
-      map.setPaintProperty('meizan-circles', prop, val);
+      // 凡例を更新
+      updateLegend(currentViz);
     });
-
-    // ボタンのアクティブ状態を更新
-    vizContainer.querySelectorAll('.viz-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-
-    // 凡例を更新
-    updateLegend(meizanVisible, currentViz);
   });
-});
 
-dataButtonContainer.appendChild(vizContainer);
+  dataButtonContainer.appendChild(vizContainer);
 
-// 初期凡例を表示
-updateLegend(meizanVisible, currentViz);
+  // 初期凡例を表示
+  updateLegend(currentViz);
+} else {
+  legendEl.style.display = 'none';
+}
 
 // ─── 温泉データ表示 UI ────────────────────────────────────────────────────────
 
-let springsVisible = true;
 let currentSpringFilter = null;
 
 const springLegendEl = document.getElementById('spring-legend');
@@ -563,58 +561,51 @@ function getSpringLegendHTML(filterType) {
   return html;
 }
 
-function updateSpringLegend(visible, filterType) {
-  springLegendEl.style.display = visible ? 'block' : 'none';
-  if (visible) springLegendEl.innerHTML = getSpringLegendHTML(filterType);
+function updateSpringLegend(filterType) {
+  springLegendEl.style.display = 'block';
+  springLegendEl.innerHTML = getSpringLegendHTML(filterType);
 }
 
-// データパネルの仕切り線
-const springDivider = document.createElement('div');
-springDivider.className = 'data-divider';
-dataButtonContainer.appendChild(springDivider);
+if (MODE !== 'meizan') {
+  // 名山と両方表示の場合は仕切り線を追加
+  if (MODE === 'both') {
+    const springDivider = document.createElement('div');
+    springDivider.className = 'data-divider';
+    dataButtonContainer.appendChild(springDivider);
+  }
 
-// 温泉レイヤー トグルボタン
-const springsToggleBtn = document.createElement('button');
-springsToggleBtn.className = 'layer-btn active';
-springsToggleBtn.innerHTML = '<span class="icon">♨️</span>温泉を表示';
-dataButtonContainer.appendChild(springsToggleBtn);
+  // 泉質フィルタ セレクト
+  const springTypeSelect = document.createElement('select');
+  springTypeSelect.className = 'spring-type-select';
 
-springsToggleBtn.addEventListener('click', () => {
-  springsVisible = !springsVisible;
-  map.setLayoutProperty('springs-circles', 'visibility', springsVisible ? 'visible' : 'none');
-  springsToggleBtn.classList.toggle('active', springsVisible);
-  updateSpringLegend(springsVisible, currentSpringFilter);
-});
+  const defaultOption = document.createElement('option');
+  defaultOption.value = '';
+  defaultOption.textContent = '泉質でフィルタ（全て）';
+  springTypeSelect.appendChild(defaultOption);
 
-// 泉質フィルタ セレクト
-const springTypeSelect = document.createElement('select');
-springTypeSelect.className = 'spring-type-select';
-
-const defaultOption = document.createElement('option');
-defaultOption.value = '';
-defaultOption.textContent = '泉質でフィルタ（全て）';
-springTypeSelect.appendChild(defaultOption);
-
-SPRING_TYPES.forEach(type => {
-  const opt = document.createElement('option');
-  opt.value = type;
-  opt.textContent = type;
-  springTypeSelect.appendChild(opt);
-});
-
-dataButtonContainer.appendChild(springTypeSelect);
-
-springTypeSelect.addEventListener('change', () => {
-  currentSpringFilter = springTypeSelect.value || null;
-  const paint = getSpringPaint(currentSpringFilter);
-  Object.entries(paint).forEach(([prop, val]) => {
-    map.setPaintProperty('springs-circles', prop, val);
+  SPRING_TYPES.forEach(type => {
+    const opt = document.createElement('option');
+    opt.value = type;
+    opt.textContent = type;
+    springTypeSelect.appendChild(opt);
   });
-  updateSpringLegend(springsVisible, currentSpringFilter);
-});
 
-// 初期凡例を表示
-updateSpringLegend(springsVisible, currentSpringFilter);
+  dataButtonContainer.appendChild(springTypeSelect);
+
+  springTypeSelect.addEventListener('change', () => {
+    currentSpringFilter = springTypeSelect.value || null;
+    const paint = getSpringPaint(currentSpringFilter);
+    Object.entries(paint).forEach(([prop, val]) => {
+      map.setPaintProperty('springs-circles', prop, val);
+    });
+    updateSpringLegend(currentSpringFilter);
+  });
+
+  // 初期凡例を表示
+  updateSpringLegend(currentSpringFilter);
+} else {
+  springLegendEl.style.display = 'none';
+}
 
 // ─── 検索機能 ──────────────────────────────────────────────────────────────────
 
@@ -651,8 +642,13 @@ async function fetchSearch(q) {
   try {
     const res = await fetch(`/search?q=${encodeURIComponent(q)}`);
     const data = await res.json();
-    latestResults = data.results;
-    renderSearchResults(data.results);
+    const filtered = MODE === 'meizan'
+      ? data.results.filter(r => r.type === 'meizan')
+      : MODE === 'spring'
+        ? data.results.filter(r => r.type === 'spring')
+        : data.results;
+    latestResults = filtered;
+    renderSearchResults(filtered);
   } catch (_) {
     // ネットワークエラーは無視
   }

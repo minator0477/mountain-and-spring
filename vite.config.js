@@ -6,6 +6,9 @@ export default defineConfig({
     proxy: {
       '/meizan.geojson': 'http://localhost:8000',
       '/springs.geojson': 'http://localhost:8000',
+      '/meizan': 'http://localhost:8000',
+      '/spring': 'http://localhost:8000',
+      '/search': 'http://localhost:8000',
     },
   },
   build: {
