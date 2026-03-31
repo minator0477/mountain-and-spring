@@ -168,6 +168,98 @@ const popup = new maplibregl.Popup({
   maxWidth: '360px',
 });
 
+// ── ポップアップ HTML ヘルパー ──────────────────────────────────────────────────
+
+function buildMeizanPopupHTML(props) {
+  const count = props.count ?? 0;
+  let visitsHTML = '';
+  if (count > 0 && props.visits) {
+    const visits = typeof props.visits === 'string' ? JSON.parse(props.visits) : props.visits;
+    const items = visits.map(v =>
+      `<li>${v.date}${v.note ? `<span class="popup-visit-note">　${v.note}</span>` : ''}</li>`
+    ).join('');
+    visitsHTML = `
+      <div class="popup-visits">
+        <div class="popup-visits-label">登頂日</div>
+        <ul class="popup-visits-list">${items}</ul>
+      </div>`;
+  }
+  return `
+    <div class="popup-content">
+      <div class="popup-header">
+        <span class="popup-icon">🏔</span>
+        <div class="popup-title-block">
+          <div class="popup-title">${props.name}</div>
+          <div class="popup-yomi">${props.yomi}</div>
+        </div>
+      </div>
+      <div class="popup-stats">
+        <div class="popup-stat">
+          <span class="popup-stat-label">標高</span>
+          <span class="popup-stat-value">${props.elev_m.toLocaleString()} m</span>
+        </div>
+        <div class="popup-stat">
+          <span class="popup-stat-label">登頂</span>
+          <span class="popup-stat-value">${count} 回</span>
+        </div>
+      </div>
+      ${visitsHTML}
+    </div>`;
+}
+
+function buildSpringPopupHTML(props) {
+  const count = props.count ?? 0;
+  const springTypes = props.spring_type
+    ? (typeof props.spring_type === 'string' ? JSON.parse(props.spring_type) : props.spring_type)
+    : null;
+  let visitsHTML = '';
+  if (count > 0 && props.visits) {
+    const visits = typeof props.visits === 'string' ? JSON.parse(props.visits) : props.visits;
+    const items = visits.map(v =>
+      `<li>${v.date}${v.note ? `<span class="popup-visit-note">　${v.note}</span>` : ''}</li>`
+    ).join('');
+    visitsHTML = `
+      <div class="popup-visits">
+        <div class="popup-visits-label">入湯日</div>
+        <ul class="popup-visits-list">${items}</ul>
+      </div>`;
+  }
+  return `
+    <div class="popup-content">
+      <div class="popup-header">
+        <span class="popup-icon">♨️</span>
+        <div class="popup-title-block">
+          <div class="popup-title">${props.name}</div>
+          <div class="popup-yomi">${props.yomi}</div>
+        </div>
+      </div>
+      <div class="popup-stats">
+        <div class="popup-stat">
+          <span class="popup-stat-label">入湯</span>
+          <span class="popup-stat-value popup-stat-value--spring">${count} 回</span>
+        </div>
+        ${springTypes ? `
+        <div class="popup-stat">
+          <span class="popup-stat-label">泉質</span>
+          <span class="popup-stat-value popup-stat-value--spring popup-spring-types">${springTypes.join(' / ')}</span>
+        </div>` : ''}
+      </div>
+      ${visitsHTML}
+    </div>`;
+}
+
+// ── URL 管理 ────────────────────────────────────────────────────────────────────
+
+function setPopupURL(type, id) {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('meizan');
+  url.searchParams.delete('spring');
+  if (type && id != null) url.searchParams.set(type, id);
+  history.replaceState(null, '', url);
+}
+
+popup.on('close', () => setPopupURL(null, null));
+
 // コントロール追加
 map.addControl(new maplibregl.NavigationControl(), 'top-left');
 map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
@@ -176,7 +268,7 @@ map.addControl(new maplibregl.FullscreenControl(), 'top-left');
 // 地形 DEM ソースとスカイレイヤーをロード後に追加
 const TERRAIN_SOURCE_ID = 'terrain-dem';
 
-map.on('load', () => {
+map.on('load', async () => {
   map.addSource(TERRAIN_SOURCE_ID, {
     type: 'raster-dem',
     tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
@@ -217,44 +309,8 @@ map.on('load', () => {
     map.on('click', 'meizan-circles', (e) => {
       const props = e.features[0].properties;
       const coords = e.features[0].geometry.coordinates.slice();
-
-      const count = props.count ?? 0;
-
-      let visitsHTML = '';
-      if (count > 0 && props.visits) {
-        const visits = typeof props.visits === 'string' ? JSON.parse(props.visits) : props.visits;
-        const items = visits.map(v =>
-          `<li>${v.date}${v.note ? `<span class="popup-visit-note">　${v.note}</span>` : ''}</li>`
-        ).join('');
-        visitsHTML = `
-          <div class="popup-visits">
-            <div class="popup-visits-label">登頂日</div>
-            <ul class="popup-visits-list">${items}</ul>
-          </div>`;
-      }
-
-      popup.setLngLat(coords).setHTML(`
-        <div class="popup-content">
-          <div class="popup-header">
-            <span class="popup-icon">🏔</span>
-            <div class="popup-title-block">
-              <div class="popup-title">${props.name}</div>
-              <div class="popup-yomi">${props.yomi}</div>
-            </div>
-          </div>
-          <div class="popup-stats">
-            <div class="popup-stat">
-              <span class="popup-stat-label">標高</span>
-              <span class="popup-stat-value">${props.elev_m.toLocaleString()} m</span>
-            </div>
-            <div class="popup-stat">
-              <span class="popup-stat-label">登頂</span>
-              <span class="popup-stat-value">${count} 回</span>
-            </div>
-          </div>
-          ${visitsHTML}
-        </div>
-      `).addTo(map);
+      popup.setLngLat(coords).setHTML(buildMeizanPopupHTML(props)).addTo(map);
+      setPopupURL('meizan', props.no);
     });
 
     // ホバー時にカーソルをポインターに変更
@@ -285,48 +341,8 @@ map.on('load', () => {
     map.on('click', 'springs-circles', (e) => {
       const props = e.features[0].properties;
       const coords = e.features[0].geometry.coordinates.slice();
-
-      const count = props.count ?? 0;
-      const springTypes = props.spring_type
-        ? (typeof props.spring_type === 'string' ? JSON.parse(props.spring_type) : props.spring_type)
-        : null;
-
-      let visitsHTML = '';
-      if (count > 0 && props.visits) {
-        const visits = typeof props.visits === 'string' ? JSON.parse(props.visits) : props.visits;
-        const items = visits.map(v =>
-          `<li>${v.date}${v.note ? `<span class="popup-visit-note">　${v.note}</span>` : ''}</li>`
-        ).join('');
-        visitsHTML = `
-          <div class="popup-visits">
-            <div class="popup-visits-label">入湯日</div>
-            <ul class="popup-visits-list">${items}</ul>
-          </div>`;
-      }
-
-      popup.setLngLat(coords).setHTML(`
-        <div class="popup-content">
-          <div class="popup-header">
-            <span class="popup-icon">♨️</span>
-            <div class="popup-title-block">
-              <div class="popup-title">${props.name}</div>
-              <div class="popup-yomi">${props.yomi}</div>
-            </div>
-          </div>
-          <div class="popup-stats">
-            <div class="popup-stat">
-              <span class="popup-stat-label">入湯</span>
-              <span class="popup-stat-value popup-stat-value--spring">${count} 回</span>
-            </div>
-            ${springTypes ? `
-            <div class="popup-stat">
-              <span class="popup-stat-label">泉質</span>
-              <span class="popup-stat-value popup-stat-value--spring popup-spring-types">${springTypes.join(' / ')}</span>
-            </div>` : ''}
-          </div>
-          ${visitsHTML}
-        </div>
-      `).addTo(map);
+      popup.setLngLat(coords).setHTML(buildSpringPopupHTML(props)).addTo(map);
+      setPopupURL('spring', props.id);
     });
 
     map.on('mouseenter', 'springs-circles', () => {
@@ -336,7 +352,38 @@ map.on('load', () => {
       map.getCanvas().style.cursor = '';
     });
   }
+
+  // URL パラメータからポップアップを初期表示
+  await initFromURL();
 });
+
+async function initFromURL() {
+  const params = new URL(window.location.href).searchParams;
+  const meizanNo = params.get('meizan');
+  const springId = params.get('spring');
+
+  if (meizanNo && MODE !== 'spring') {
+    try {
+      const fc = await fetch('/meizan.geojson').then(r => r.json());
+      const f = fc.features.find(f => f.properties.no === parseInt(meizanNo));
+      if (f) {
+        const [lng, lat] = f.geometry.coordinates;
+        map.flyTo({ center: [lng, lat], zoom: 13, duration: 800 });
+        popup.setLngLat([lng, lat]).setHTML(buildMeizanPopupHTML(f.properties)).addTo(map);
+      }
+    } catch (_) {}
+  } else if (springId && MODE !== 'meizan') {
+    try {
+      const fc = await fetch('/springs.geojson').then(r => r.json());
+      const f = fc.features.find(f => f.properties.id === parseInt(springId));
+      if (f) {
+        const [lng, lat] = f.geometry.coordinates;
+        map.flyTo({ center: [lng, lat], zoom: 13, duration: 800 });
+        popup.setLngLat([lng, lat]).setHTML(buildSpringPopupHTML(f.properties)).addTo(map);
+      }
+    } catch (_) {}
+  }
+}
 
 // パネルセクションの折りたたみ
 document.querySelectorAll('.panel-section-header').forEach(header => {
@@ -687,67 +734,11 @@ function showSearchResult(r) {
   closeSearchResults();
   map.flyTo({ center: [r.lng, r.lat], zoom: 13, duration: 800 });
 
-  const count = r.count ?? 0;
-  let visitsHTML = '';
-  if (count > 0 && r.visits) {
-    const label = r.type === 'meizan' ? '登頂日' : '入湯日';
-    const items = r.visits.map(v =>
-      `<li>${v.date}${v.note ? `<span class="popup-visit-note">　${v.note}</span>` : ''}</li>`
-    ).join('');
-    visitsHTML = `
-      <div class="popup-visits">
-        <div class="popup-visits-label">${label}</div>
-        <ul class="popup-visits-list">${items}</ul>
-      </div>`;
-  }
-
   if (r.type === 'meizan') {
-    popup.setLngLat([r.lng, r.lat]).setHTML(`
-      <div class="popup-content">
-        <div class="popup-header">
-          <span class="popup-icon">🏔</span>
-          <div class="popup-title-block">
-            <div class="popup-title">${r.name}</div>
-            <div class="popup-yomi">${r.yomi}</div>
-          </div>
-        </div>
-        <div class="popup-stats">
-          <div class="popup-stat">
-            <span class="popup-stat-label">標高</span>
-            <span class="popup-stat-value">${r.elev_m.toLocaleString()} m</span>
-          </div>
-          <div class="popup-stat">
-            <span class="popup-stat-label">登頂</span>
-            <span class="popup-stat-value">${count} 回</span>
-          </div>
-        </div>
-        ${visitsHTML}
-      </div>
-    `).addTo(map);
+    popup.setLngLat([r.lng, r.lat]).setHTML(buildMeizanPopupHTML(r)).addTo(map);
+    setPopupURL('meizan', r.no);
   } else {
-    const springTypes = r.spring_type;
-    popup.setLngLat([r.lng, r.lat]).setHTML(`
-      <div class="popup-content">
-        <div class="popup-header">
-          <span class="popup-icon">♨️</span>
-          <div class="popup-title-block">
-            <div class="popup-title">${r.name}</div>
-            <div class="popup-yomi">${r.yomi}</div>
-          </div>
-        </div>
-        <div class="popup-stats">
-          <div class="popup-stat">
-            <span class="popup-stat-label">入湯</span>
-            <span class="popup-stat-value popup-stat-value--spring">${count} 回</span>
-          </div>
-          ${springTypes ? `
-          <div class="popup-stat">
-            <span class="popup-stat-label">泉質</span>
-            <span class="popup-stat-value popup-stat-value--spring popup-spring-types">${springTypes.join(' / ')}</span>
-          </div>` : ''}
-        </div>
-        ${visitsHTML}
-      </div>
-    `).addTo(map);
+    popup.setLngLat([r.lng, r.lat]).setHTML(buildSpringPopupHTML(r)).addTo(map);
+    setPopupURL('spring', r.id);
   }
 }
