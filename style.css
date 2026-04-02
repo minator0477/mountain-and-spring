@@ -207,22 +207,36 @@ body {
   background: rgba(255, 255, 255, 0.95);
   border-radius: 14px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
-  min-width: 210px;
   backdrop-filter: blur(4px);
   overflow: hidden;
+}
+
+.legend-panel:not(.collapsed) {
+  min-width: 210px;
 }
 
 .legend-panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 18px;
+  gap: 6px;
+  padding: 10px 14px;
   font-size: 15px;
   font-weight: 700;
   color: #555;
   cursor: pointer;
   user-select: none;
   letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.legend-panel-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.legend-panel.collapsed .legend-panel-label {
+  display: none;
 }
 
 .legend-panel-header::after {

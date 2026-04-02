@@ -483,7 +483,7 @@ let currentViz = 'category';
 
 const dataButtonContainer = document.getElementById('data-buttons');
 const legendEl = document.getElementById('meizan-legend');
-legendEl.innerHTML = '<div class="legend-panel-header">🏔 凡例</div><div class="legend-panel-body"></div>';
+legendEl.innerHTML = '<div class="legend-panel-header"><span class="legend-panel-icon">🏔</span><span class="legend-panel-label">凡例</span></div><div class="legend-panel-body"></div>';
 legendEl.classList.add('legend-panel', 'collapsed');
 legendEl.querySelector('.legend-panel-header').addEventListener('click', () => {
   legendEl.classList.toggle('collapsed');
@@ -577,7 +577,7 @@ if (MODE !== 'spring') {
 let currentSpringFilter = null;
 
 const springLegendEl = document.getElementById('spring-legend');
-springLegendEl.innerHTML = '<div class="legend-panel-header">♨️ 凡例</div><div class="legend-panel-body"></div>';
+springLegendEl.innerHTML = '<div class="legend-panel-header"><span class="legend-panel-icon">♨️</span><span class="legend-panel-label">凡例</span></div><div class="legend-panel-body"></div>';
 springLegendEl.classList.add('legend-panel', 'collapsed');
 springLegendEl.querySelector('.legend-panel-header').addEventListener('click', () => {
   springLegendEl.classList.toggle('collapsed');
