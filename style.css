@@ -235,6 +235,10 @@ body {
   line-height: 1;
 }
 
+.legend-panel.collapsed {
+  width: fit-content;
+}
+
 .legend-panel.collapsed .legend-panel-label {
   display: none;
 }
