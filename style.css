@@ -263,6 +263,7 @@ body {
 
 .legend-panel.collapsed .legend-panel-body {
   grid-template-rows: 0fr;
+  width: 0;
 }
 
 .legend-panel-body > * {
