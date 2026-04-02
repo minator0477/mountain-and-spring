@@ -14,23 +14,28 @@
       <input type="text" id="search-input" placeholder="山・温泉を検索..." autocomplete="off">
       <div id="search-results"></div>
     </div>
-    <div class="panel-section collapsed" id="basemap-section">
-      <div class="panel-section-header">背景地図</div>
-      <div class="panel-section-body">
-        <div id="layer-buttons"></div>
-      </div>
-    </div>
-    <div class="panel-section collapsed">
-      <div class="panel-section-header">表示設定</div>
-      <div class="panel-section-body">
-        <div id="view-buttons"></div>
-      </div>
-    </div>
-    <div class="panel-section collapsed">
-      <div class="panel-section-header">データ</div>
-      <div class="panel-section-body">
-        <div id="data-buttons"></div>
-      </div>
+    <div id="layer-controls-wrap" class="collapsed">
+      <div id="layer-controls-toggle">⚙️ 設定</div>
+      <div id="layer-controls-body"><div>
+        <div class="panel-section collapsed" id="basemap-section">
+          <div class="panel-section-header">背景地図</div>
+          <div class="panel-section-body">
+            <div id="layer-buttons"></div>
+          </div>
+        </div>
+        <div class="panel-section collapsed">
+          <div class="panel-section-header">表示設定</div>
+          <div class="panel-section-body">
+            <div id="view-buttons"></div>
+          </div>
+        </div>
+        <div class="panel-section collapsed">
+          <div class="panel-section-header">データ</div>
+          <div class="panel-section-body">
+            <div id="data-buttons"></div>
+          </div>
+        </div>
+      </div></div>
     </div>
   </div>
   <div id="legends">

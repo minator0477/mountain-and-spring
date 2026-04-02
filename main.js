@@ -392,6 +392,11 @@ document.querySelectorAll('.panel-section-header').forEach(header => {
   });
 });
 
+// 設定パネルの折りたたみ
+document.getElementById('layer-controls-toggle').addEventListener('click', () => {
+  document.getElementById('layer-controls-wrap').classList.toggle('collapsed');
+});
+
 // 背景地図切替ボタンを動的生成
 let currentBasemap = DEFAULT_BASEMAP;
 

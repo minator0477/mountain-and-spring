@@ -29,6 +29,44 @@ body {
   backdrop-filter: blur(4px);
 }
 
+#layer-controls-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: #555;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  user-select: none;
+  padding-top: 4px;
+}
+
+#layer-controls-toggle::after {
+  content: '▲';
+  font-size: 11px;
+  color: #aaa;
+  transition: transform 0.2s;
+}
+
+#layer-controls-wrap.collapsed #layer-controls-toggle::after {
+  transform: rotate(180deg);
+}
+
+#layer-controls-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.25s ease;
+}
+
+#layer-controls-wrap.collapsed #layer-controls-body {
+  grid-template-rows: 0fr;
+}
+
+#layer-controls-body > * {
+  overflow: hidden;
+}
+
 #basemap-section {
   margin-top: 0;
   padding-top: 0;
