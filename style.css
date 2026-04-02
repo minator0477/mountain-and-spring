@@ -22,10 +22,9 @@ body {
   right: 10px;
   background: rgba(255, 255, 255, 0.95);
   border-radius: 14px;
-  padding: 20px;
+  padding: 10px 12px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
   z-index: 1000;
-  min-width: 210px;
   backdrop-filter: blur(4px);
 }
 
@@ -65,6 +64,10 @@ body {
 
 #layer-controls-body > * {
   overflow: hidden;
+}
+
+#layer-controls-wrap:not(.collapsed) {
+  min-width: 190px;
 }
 
 #basemap-section {
