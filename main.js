@@ -483,6 +483,11 @@ let currentViz = 'category';
 
 const dataButtonContainer = document.getElementById('data-buttons');
 const legendEl = document.getElementById('meizan-legend');
+legendEl.innerHTML = '<div class="legend-panel-header">🏔 凡例</div><div class="legend-panel-body"></div>';
+legendEl.classList.add('legend-panel', 'collapsed');
+legendEl.querySelector('.legend-panel-header').addEventListener('click', () => {
+  legendEl.classList.toggle('collapsed');
+});
 
 // 可視化モードごとの凡例 HTML を返す
 function getLegendHTML(mode) {
@@ -526,7 +531,7 @@ function getLegendHTML(mode) {
 // 凡例の内容を更新
 function updateLegend(mode) {
   legendEl.style.display = 'block';
-  legendEl.innerHTML = getLegendHTML(mode);
+  legendEl.querySelector('.legend-panel-body').innerHTML = `<div class="legend-inner">${getLegendHTML(mode)}</div>`;
 }
 
 if (MODE !== 'spring') {
@@ -572,6 +577,11 @@ if (MODE !== 'spring') {
 let currentSpringFilter = null;
 
 const springLegendEl = document.getElementById('spring-legend');
+springLegendEl.innerHTML = '<div class="legend-panel-header">♨️ 凡例</div><div class="legend-panel-body"></div>';
+springLegendEl.classList.add('legend-panel', 'collapsed');
+springLegendEl.querySelector('.legend-panel-header').addEventListener('click', () => {
+  springLegendEl.classList.toggle('collapsed');
+});
 
 function getSpringLegendHTML(filterType) {
   const circle = (r, color) =>
@@ -610,7 +620,7 @@ function getSpringLegendHTML(filterType) {
 
 function updateSpringLegend(filterType) {
   springLegendEl.style.display = 'block';
-  springLegendEl.innerHTML = getSpringLegendHTML(filterType);
+  springLegendEl.querySelector('.legend-panel-body').innerHTML = `<div class="legend-inner">${getSpringLegendHTML(filterType)}</div>`;
 }
 
 if (MODE !== 'meizan') {
