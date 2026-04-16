@@ -74,20 +74,6 @@ def main():
     # 図の作成
     fig, ax = plt.subplots(figsize=(12, 10))
 
-    # 全国表示（EPSG:3857 での日本の範囲）— basemap より先に設定する
-    ax.set_xlim(14_000_000, 16_500_000)
-    ax.set_ylim(2_500_000, 6_000_000)
-
-    # basemap の追加（軸範囲確定後に取得）
-    try:
-        ctx.add_basemap(
-            ax,
-            source=ctx.providers.CartoDB.Positron,
-            zoom=6,
-        )
-    except Exception as e:
-        print(f"basemap の読み込みに失敗しました（オフライン？）: {e}")
-
     # 灰色を先に描画し、オレンジを上に重ねる
     for color, zorder in [(COLOR_OTHER, 3), (COLOR_RECENT, 4)]:
         subset = gdf_web[gdf_web["color"] == color]
@@ -99,6 +85,21 @@ def main():
             edgecolor=EDGE_COLOR,
             linewidth=EDGE_WIDTH,
         )
+
+    # 東西方向の描画範囲を拡張
+    xmin, xmax = ax.get_xlim()
+    xpad = (xmax - xmin) * 0.5
+    ax.set_xlim(xmin - xpad, xmax + xpad)
+
+    # basemap の追加
+    try:
+        ctx.add_basemap(
+            ax,
+            source=ctx.providers.Esri.OceanBasemap,
+            zoom=9,
+        )
+    except Exception as e:
+        print(f"basemap の読み込みに失敗しました（オフライン？）: {e}")
 
     # 凡例
     recent_count = (gdf["color"] == COLOR_RECENT).sum()
